@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
-import ActivityService from '../services/activityService.js';
+import ActivityService from '../database/services/activityService.js';
 import UserService from '../database/services/userService.js';
 
 const activityService = new ActivityService();

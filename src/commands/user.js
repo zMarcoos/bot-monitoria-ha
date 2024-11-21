@@ -13,11 +13,7 @@ const JAKE_REGIONS = [
 ];
 
 const FINN_REGIONS = [
-  { xMin: 60, yMin: 140, xMax: 182, yMax: 260 },
-  { xMin: 60, yMin: 55, xMax: 80, yMax: 140 },
-  { xMin: 185, yMin: 140, xMax: 220, yMax: 195 },
-  { xMin: 185, yMin: 235, xMax: 220, yMax: 258 },
-  { xMin: 40, yMin: 235, xMax: 60, yMax: 253 },
+  { xMin: 0, yMin: 0, xMax: 0, yMax: 0 },
 ];
 
 function drawStar(context, x, y, radius, color) {
@@ -62,8 +58,6 @@ async function generateImageWithStars(character, starCount = 1) {
 
   for (let index = 0; index < starCount; index++) {
     const regions = character === 'Finn' ? FINN_REGIONS : JAKE_REGIONS;
-
-    drawRegionBoxes(context, regions);
 
     let randomRegion = regions[Math.floor(Math.random() * regions.length)];
 

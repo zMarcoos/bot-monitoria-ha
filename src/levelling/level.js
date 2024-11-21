@@ -53,4 +53,3 @@ export async function calculateDynamicLevel(experience, currentLevel = 1) {
 
   return { level: newLevel, role: ROLES[newLevel - 1], levelUp };
 }
-
