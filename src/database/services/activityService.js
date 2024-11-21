@@ -1,4 +1,4 @@
-import database from '../database/firebase.js';
+import database from '../firebase.js';
 import Joi from 'joi';
 
 export default class ActivityService {

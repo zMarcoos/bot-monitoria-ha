@@ -1,4 +1,4 @@
-import ActivityService from '../services/activityService.js';
+import ActivityService from '../database/services/activityService.js';
 
 export const XP_VALUES = {
   pratico: 10,

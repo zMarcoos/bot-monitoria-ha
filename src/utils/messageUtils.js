@@ -14,7 +14,6 @@ export async function deleteMessage(message, time = 5000) {
   }
 }
 
-
 export function createEmbed({
   title,
   description,

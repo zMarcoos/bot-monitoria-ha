@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import UserService from '../services/userService.js';
+import UserService from '../database/services/userService.js';
 
 const webhookSummaryURL = 'https://discord.com/api/webhooks/1304962956504596581/scecJvnPoOVm8Z3vYspP12F0uM5T4HxyYvJTH8PoXhvQjDvA8uGAZEKtatNNWXcjHDEP';
 

@@ -2,7 +2,7 @@ import { SlashCommandBuilder, AttachmentBuilder } from 'discord.js';
 import { createCanvas, loadImage } from 'canvas';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import UserService from '../services/userService.js';
+import UserService from '../database/services/userService.js';
 
 const JAKE_REGIONS = [
   { xMin: 60, yMin: 140, xMax: 182, yMax: 260 },
@@ -62,6 +62,8 @@ async function generateImageWithStars(character, starCount = 1) {
 
   for (let index = 0; index < starCount; index++) {
     const regions = character === 'Finn' ? FINN_REGIONS : JAKE_REGIONS;
+
+    drawRegionBoxes(context, regions);
 
     let randomRegion = regions[Math.floor(Math.random() * regions.length)];
 

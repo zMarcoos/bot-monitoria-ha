@@ -1,7 +1,7 @@
 import { Events } from 'discord.js';
 import { collectSequentialReactions, collectSequentialResponses, sendDM } from '../utils/interactionHandlers.js';
 import { createEmbed, deleteMessage } from '../utils/messageUtils.js';
-import UserService from '../services/userService.js';
+import UserService from '../database/services/userService.js';
 
 export default {
   once: false,

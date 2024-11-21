@@ -1,10 +1,10 @@
 import Joi from 'joi';
 import { FieldValue } from 'firebase-admin/firestore';
-import database from '../database/firebase.js';
+import database from '../firebase.js';
 import ActivityService from './activityService.js';
-import { calculateUserExperience, calculateDynamicLevel } from '../levelling/level.js';
+import { calculateUserExperience, calculateDynamicLevel } from '../../levelling/level.js';
 import { differenceInDays } from 'date-fns';
-import client from '../index.js';
+import client from '../../index.js';
 
 export default class UserService {
   constructor(collectionName = 'usuarios') {

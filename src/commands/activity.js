@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import ActivityService from '../services/activityService.js';
-import UserService from '../services/userService.js';
+import UserService from '../database/services/userService.js';
 
 const activityService = new ActivityService();
 const userService = new UserService();
