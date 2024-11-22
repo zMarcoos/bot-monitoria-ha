@@ -84,7 +84,7 @@ export default {
         enrollment: responseAnswers.enrollment,
         character: reactionAnswers.character === '👨' ? 'Finn' : 'Jake',
         xp: 0,
-        level: 1,
+        level: 0,
         role: 'Aprendiz de Algoritmos',
         activityHistory: [],
         streak: 0,
