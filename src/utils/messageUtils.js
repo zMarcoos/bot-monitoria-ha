@@ -1,23 +1,39 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { EmbedBuilder } from 'discord.js';
+import { EMBED_COLORS } from '../utils/constants.js';
 
 export async function deleteMessage(message, time = 5000) {
   if (!message || typeof message.delete !== 'function') return;
 
-  try {
-    if (time > 0) {
-      await new Promise(resolve => setTimeout(resolve, time));
+  setTimeout(async () => {
+    try {
+      await message.delete();
+    } catch (error) {
+      console.error(`Falha ao deletar a mensagem: ${error.message}`);
     }
+  }, time);
+}
 
-    await message.delete();
-  } catch (error) {
-    console.error(`Falha ao deletar a mensagem: ${error.message}`);
+export function getRandomAdventureImage() {
+  const assetsPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../assets');
+
+  const images = fs.readdirSync(assetsPath).filter(file => file === 'adventure_time_photos.json');
+  if (!images.length) {
+    console.error('Arquivo adventure_time_photos.json não encontrado.');
+    return { url: '' };
   }
+
+  const photos = JSON.parse(fs.readFileSync(path.join(assetsPath, images[0]), 'utf-8'));
+
+  return photos[Math.floor(Math.random() * photos.length)];
 }
 
 export function createEmbed({
   title,
   description,
-  color = '#0099ff',
+  color = EMBED_COLORS.DEFAULT,
   fields = [],
   footer,
   thumbnail,

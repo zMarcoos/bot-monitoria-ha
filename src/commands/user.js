@@ -1,8 +1,10 @@
 import { SlashCommandBuilder, AttachmentBuilder } from 'discord.js';
 import { createCanvas, loadImage } from 'canvas';
-import path from 'path';
+import { createEmbed } from '../utils/messageUtils.js';
 import { fileURLToPath } from 'url';
+import path from 'path';
 import UserService from '../database/services/userService.js';
+import { EMBED_COLORS } from '../utils/constants.js';
 
 const JAKE_REGIONS = [
   { xMin: 60, yMin: 140, xMax: 182, yMax: 260 },
@@ -114,7 +116,17 @@ export default {
         const userService = new UserService();
         const user = await userService.getUser(interaction.user.id);
         if (!user) {
-          await interaction.reply({ content: 'Você não está registrado no sistema.', ephemeral: true });
+          await interaction.reply({
+            content: 'Você não está registrado no sistema.',
+            embeds: [
+              createEmbed({
+                title: 'Registro',
+                description: 'Você não está registrado. Entre novamente no servidor!',
+                color: EMBED_COLORS.RED,
+              })
+            ],
+            ephemeral: true
+          });
           return;
         }
 
@@ -123,7 +135,16 @@ export default {
         await interaction.reply({ files: [attachment] });
         break;
       default:
-        await interaction.reply('Ação inválida.');
+        await interaction.reply({
+          embeds: [
+            createEmbed({
+              title: 'Usuário',
+              description: 'Ação não encontrada.',
+              color: EMBED_COLORS.RED,
+            })
+          ],
+          ephemeral: true
+        });
         break;
     }
   },

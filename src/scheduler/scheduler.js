@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import UserService from '../database/services/userService.js';
+import { getMember } from '../utils/userUtils.js';
 
 const webhookSummaryURL = 'https://discord.com/api/webhooks/1304962956504596581/scecJvnPoOVm8Z3vYspP12F0uM5T4HxyYvJTH8PoXhvQjDvA8uGAZEKtatNNWXcjHDEP';
 
@@ -46,10 +47,11 @@ async function getGoodMessage() {
 export const initScheduler = () => {
   cron.schedule('0 6 * * 1', async () => {
     const userService = new UserService();
-    const list = await userService.listUsers();
-    const userList = list.length ? list.map(user => `🧑 Nome: **${user.name}** | 🌟 XP: **${user.xp}** | 🏆 Nível: **${user.level}**`).join('\n') : '⚠️ Nenhum usuário encontrado.';
+    const listUsers = await userService.listUsers();
 
-    sendWebhookMessage(`**Relatório do desempenho semanal dos alunos**\n${userList}`, webhookSummaryURL);
+    const summary = listUsers.length ? listUsers.map(user => `🧑 Nome: **${getMember(user.id) || 'Desconhecido'}** | 🌟 XP: **${user.xp}** | 🏆 Nível: **${user.level}**`).join('\n') : '⚠️ Nenhum usuário encontrado.';
+
+    sendWebhookMessage(`**Relatório do desempenho semanal dos alunos**\n${summary}`, webhookSummaryURL);
   });
 
   cron.schedule('0 6 * * *', async () => {

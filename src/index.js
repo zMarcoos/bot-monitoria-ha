@@ -1,5 +1,6 @@
-import { Client, Collection, GatewayIntentBits } from 'discord.js';
+import { Client, Collection, GatewayIntentBits, Partials } from 'discord.js';
 import { loadCommands, loadListeners, loadSlashCommands } from './handler.js';
+import { calculateLevelXPDistribution } from './levelling/level.js';
 import { initScheduler } from './scheduler/scheduler.js';
 import { config } from 'dotenv';
 
@@ -13,7 +14,7 @@ const client = new Client({
     GatewayIntentBits.DirectMessages,
     GatewayIntentBits.DirectMessageReactions,
   ],
-  partials: ['CHANNEL'],
+  partials: [Partials.Channel],
 });
 
 client.commands = new Collection();
@@ -24,6 +25,7 @@ async function initializeBot() {
     await loadCommands(client);
     await loadListeners(client);
     await loadSlashCommands(client);
+    await calculateLevelXPDistribution();
 
     console.log("Bot inicializado com sucesso!");
   } catch (error) {

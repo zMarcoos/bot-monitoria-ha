@@ -1,7 +1,30 @@
 import { Events } from 'discord.js';
 import { collectSequentialReactions, collectSequentialResponses, sendDM } from '../utils/interactionHandlers.js';
 import { createEmbed, deleteMessage } from '../utils/messageUtils.js';
+import { EMBED_COLORS } from '../utils/constants.js';
 import UserService from '../database/services/userService.js';
+
+const QUESTIONS = {
+  REACTIONS: [
+    {
+      key: 'character',
+      question: 'Escolha o personagem que vai lhe representar:\n👨 - Finn\n🐶 - Jake\n',
+      emojis: ['👨', '🐶'],
+    },
+    {
+      key: 'role',
+      question: 'De qual curso você é:\n💻 - Ciência da Computação\n👥 - Engenharia de Software\n',
+      emojis: ['💻', '👥'],
+    },
+  ],
+  RESPONSES: [
+    {
+      key: 'enrollment',
+      question: 'Qual é o seu número de matrícula?',
+      validate: (answer) => answer.length >= 6,
+    },
+  ],
+};
 
 export default {
   once: false,
@@ -18,7 +41,7 @@ export default {
           createEmbed({
             title: `Boas-vindas ao servidor ${member.guild.name}!`,
             description: `Olá! Seja bem-vindo ao ! Para começar, por favor, responda algumas perguntas!`,
-            color: '5555FF',
+            color: EMBED_COLORS.BLUE,
             author: member.guild
           }),
         ],
@@ -31,7 +54,7 @@ export default {
             createEmbed({
               title: 'Erro',
               description: 'Não foi possível enviar a mensagem para você. Habilite suas mensagens privadas e relogue no servidor.',
-              color: 'ff5555',
+              color: EMBED_COLORS.RED,
             }),
           ],
         }).then(deleteMessage);
@@ -45,36 +68,15 @@ export default {
           createEmbed({
             title: '⚠️ Atenção',
             description: 'Enviei uma mensagem privada para você. Por favor, responda as perguntas para continuar.',
-            color: 'FFFF55',
+            color: EMBED_COLORS.YELLOW,
           }),
         ],
       }).then(message => deleteMessage(message, 15000));
 
-      const reactionQuestions = [
-        {
-          key: 'character',
-          question: 'Escolha o personagem que vai lhe representar:\n👨 - Finn\n🐶 - Jake\n',
-          emojis: ['👨', '🐶'],
-        },
-        {
-          key: 'role',
-          question: 'De qual curso você é:\n💻 - Ciência da Computação\n👥 - Engenharia de Software\n',
-          emojis: ['💻', '👥'],
-        },
-      ];
-
-      const reactionAnswers = await collectSequentialReactions(member, dmChannel, reactionQuestions);
+      const reactionAnswers = await collectSequentialReactions(member, dmChannel, QUESTIONS.REACTIONS);
       if (!reactionAnswers) return;
 
-      const responseQuestions = [
-        {
-          key: 'enrollment',
-          question: 'Qual é o seu número de matrícula?',
-          validate: answer => answer.length >= 6,
-        }
-      ];
-
-      const responseAnswers = await collectSequentialResponses(member, dmChannel, responseQuestions);
+      const responseAnswers = await collectSequentialResponses(member, dmChannel, QUESTIONS.RESPONSES);
       if (!responseAnswers) return;
 
       const userService = new UserService();
@@ -105,7 +107,7 @@ export default {
               content: 'Seu perfil foi criado com sucesso. Tenha um excelente aprendizado na disciplina.',
               iconURL: member.guild.iconURL({ dynamic: true }),
             },
-            color: '55FF55',
+            color: EMBED_COLORS.GREEN,
           }),
         ],
       });

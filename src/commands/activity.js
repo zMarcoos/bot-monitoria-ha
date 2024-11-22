@@ -1,6 +1,9 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import ActivityService from '../database/services/activityService.js';
 import UserService from '../database/services/userService.js';
+import { createEmbed, getRandomAdventureImage } from '../utils/messageUtils.js';
+import { EMBED_COLORS } from '../utils/constants.js';
+import { getMember } from '../utils/userUtils.js';
 
 const activityService = new ActivityService();
 const userService = new UserService();
@@ -50,13 +53,19 @@ export default {
       const member = interaction.member;
 
       if (!member.roles.cache.some(role => role.id === '1298472442565623818')) {
-        await interaction.reply({ content: 'Você não tem permissão para executar este comando.', ephemeral: true });
+        await interaction.reply({
+          embeds: [
+            createEmbed({
+              title: 'Erro',
+              description: 'Você não tem permissão para executar este comando.',
+              color: EMBED_COLORS.RED,
+            })
+          ],
+          ephemeral: true
+        });
         return;
       }
     }
-
-    const userId = interaction.options.getUser('user')?.id;
-    const activityId = interaction.options.getString('activity_id');
 
     switch (subcommand) {
       case 'adicionar': {
@@ -69,8 +78,107 @@ export default {
       }
 
       case 'vincular': {
-        await userService.addActivityToUser(userId, activityId);
-        await interaction.reply({ content: 'Atividade processada com sucesso.', ephemeral: true });
+        const userId = interaction.options.getUser('user')?.id;
+        if (!userId) {
+          await interaction.reply({
+            embeds: [
+              createEmbed({
+                title: 'Erro',
+                description: 'Usuário inválido.',
+                color: EMBED_COLORS.RED,
+              })
+            ],
+          });
+          return;
+        }
+
+        const user = await userService.getUser(userId);
+        if (!user) {
+          await interaction.reply({
+            embeds: [
+              createEmbed({
+                title: 'Erro',
+                description: 'Usuário não encontrado.',
+                color: EMBED_COLORS.RED,
+              })
+            ],
+          });
+          return;
+        }
+
+        const activity = await activityService.getActivity(interaction.options.getString('activity_id'));
+        if (!activity) {
+          await interaction.reply({
+            embeds: [
+              createEmbed({
+                title: 'Erro',
+                description: 'Atividade inválida.',
+                color: EMBED_COLORS.RED,
+              })
+            ],
+          });
+          return;
+        }
+
+        const previousLevel = user.level;
+
+        const data = await userService.addActivityToUser(userId, activity);
+        if (!data) {
+          await interaction.reply({
+            embeds: [
+              createEmbed({
+                title: 'Erro',
+                description: 'Não foi possível vincular a atividade.',
+                color: EMBED_COLORS.RED,
+              })
+            ],
+          });
+          return;
+        }
+
+        const member = await getMember(userId);
+        const channel = interaction.guild.channels.cache.get('1298472452955045929');
+
+        channel.send({
+          embeds: [
+            createEmbed({
+              title: 'Atividade completada',
+              description: `🎉 ${member.nickname || member.user.globalName} completou a atividade "${activity.title}"! 🎉`,
+              color: EMBED_COLORS.GREEN,
+              image: getRandomAdventureImage().url,
+            })
+          ],
+        });
+
+        if (previousLevel < data.level) {
+          try {
+            const role = interaction.guild.roles.cache.get(data.role.id);
+            await member.roles.add(role);
+
+            await channel.send({
+              embeds: [
+                createEmbed({
+                  title: 'Level up!',
+                  description: `🎉 ${member.nickname || member.user.globalName} subiu para o nível ${data.level}! 🎉`,
+                  color: EMBED_COLORS.GREEN,
+                  image: getRandomAdventureImage().url,
+                })
+              ],
+            })
+          } catch (error) {
+            console.error('Erro ao enviar mensagem de atividade:', error);
+          }
+        }
+
+        await interaction.reply({
+          embeds: [
+            createEmbed({
+              title: 'Atividade vinculada',
+              description: `Atividade "${activity.title}" vinculada ao usuário ${interaction.guild.members.cache.get(userId)}`,
+              color: EMBED_COLORS.GREEN,
+            })
+          ],
+        });
         break;
       }
 
@@ -78,7 +186,16 @@ export default {
         const activities = await activityService.listActivities();
 
         if (!activities.length) {
-          await interaction.reply('Nenhuma atividade encontrada.');
+          await interaction.reply({
+            embeds: [
+              createEmbed({
+                title: 'Erro',
+                description: 'Nenhuma atividade encontrada.',
+                color: EMBED_COLORS.RED,
+              })
+            ],
+            ephemeral: true
+          });
           return;
         }
 
@@ -90,10 +207,9 @@ export default {
               .setColor('#0099ff');
 
             const userNames = await Promise.all(
-              activity.completedBy.map(async userId => {
-                const user = await userService.getUser(userId);
-                const userName = user ? user.name : 'Usuário desconhecido';
-                return `${userName} (${interaction.guild.members.cache.get(userId)})`;
+              activity.completedBy.map(async (userId) => {
+                const member = await getMember(userId);
+                return `${member.nickname || member.user.globalName} (${member})`;
               })
             );
 
@@ -102,7 +218,7 @@ export default {
           })
         );
 
-        await interaction.reply({ embeds: activityEmbeds });
+        await interaction.reply({ embeds: activityEmbeds, ephemeral: true });
         break;
       }
 

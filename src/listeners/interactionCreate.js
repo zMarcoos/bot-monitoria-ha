@@ -1,10 +1,19 @@
-import { Collection, Events } from 'discord.js';
+import { Collection, Events, PermissionsBitField } from 'discord.js';
+import { createEmbed } from '../utils/messageUtils.js';
+import { EMBED_COLORS } from '../utils/constants.js';
 
 export default {
   once: false,
   event: Events.InteractionCreate,
   async execute(interaction) {
     if (!interaction.isChatInputCommand()) return;
+
+    if (interaction.channel.id !== '1304910568188284979' && !interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+      return interaction.reply({
+        content: `Por favor, use os comandos no canal <#1304910568188284979>.`,
+        ephemeral: true
+      });
+    }
 
     const { commands, cooldowns } = interaction.client;
 
@@ -25,7 +34,14 @@ export default {
       if (now < expirationTime) {
         const timeLeft = Math.round(expirationTime / 1000);
         return interaction.reply({
-          content: `Por favor, espere <t:${timeLeft}:R> segundo(s) antes de reutilizar o comando \`${command.data.name}\`.`,
+          content: `Você está indo rápido demais, ${interaction.user}!`,
+          embeds: [
+            createEmbed({
+              title: 'Cooldown',
+              description: `Por favor, espere <t:${timeLeft}:R> antes de reutilizar o comando \`${command.data.name}\`.`,
+              color: EMBED_COLORS.RED
+            })
+          ],
           ephemeral: true
         });
       }
@@ -39,10 +55,22 @@ export default {
     } catch (error) {
       console.error(error);
 
+      const response = {
+        content: `${interaction.user}`,
+        embeds: [
+          createEmbed({
+            title: 'Erro',
+            description: 'Ocorreu um erro ao executar este comando. Fale com um desenvolvedor.',
+            color: EMBED_COLORS.RED
+          })
+        ],
+        ephemeral: true
+      }
+
       if (interaction.replied || interaction.deferred) {
-			  await interaction.followUp({ content: 'Ocorreu um erro ao executar este comando. Fale com um desenvolvedor.', ephemeral: true });
+			  await interaction.followUp(response);
 		  } else {
-			  await interaction.reply({ content: 'Ocorreu um erro ao executar este comando. Fale com um desenvolvedor.', ephemeral: true });
+			  await interaction.reply(response);
 		  }
     }
   },
