@@ -57,7 +57,7 @@ export default {
           await completedChannel.send({
             embeds: [
               createEmbed({
-                title: 'Atividade completada',
+                title: '✅ Atividade completada',
                 description: `🎉 A submissão de ${user.tag} para a atividade "${activity.title}" foi **aprovada**! 🎉`,
                 color: EMBED_COLORS.GREEN,
                 image: getRandomAdventureImage().url,
@@ -74,7 +74,7 @@ export default {
               await completedChannel.send({
                 embeds: [
                   createEmbed({
-                    title: 'Level up!',
+                    title: '🎉 Level up! 🎉',
                     description: `🎉 ${user.tag} subiu para o nível ${updatedData.level}! 🎉`,
                     color: EMBED_COLORS.GREEN,
                     image: getRandomAdventureImage().url,

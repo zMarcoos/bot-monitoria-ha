@@ -92,7 +92,7 @@ export function createEmbed({
   if (footer && footer.text) {
     embed.setFooter({
       text: footer.text,
-      iconURL: footer.iconURL || null,
+      iconURL: footer.iconURL,
     });
   }
 
@@ -100,12 +100,22 @@ export function createEmbed({
   if (image) embed.setImage(image);
 
   if (author) {
-    embed.setAuthor({
-      name: author.name || author.username || 'Desconhecido',
-      iconURL: author.iconURL || null,
-    });
+    embed.setAuthor(resolveAuthor(author));
   }
 
   if (timestamp) embed.setTimestamp(new Date(timestamp));
   return embed;
+}
+
+function resolveAuthor(author) {
+  if (!author) return null;
+
+  const name = author.name || author.username || 'Desconhecido';
+  const iconURL = typeof author.iconURL === 'function'
+    ? author.iconURL({ dynamic: true})
+    : typeof author.displayAvatarURL === 'function'
+    ? author.displayAvatarURL({ dynamic: true })
+    : null;
+
+  return { name, iconURL };
 }

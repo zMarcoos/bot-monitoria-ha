@@ -15,10 +15,13 @@ export default {
 
   async execute(interaction) {
     try {
+      // Garante que o Discord não expire a interação enquanto processa
+      await interaction.deferReply({ ephemeral: true });
+
       const users = await userService.listUsers();
 
       if (!users || users.length === 0) {
-        await interaction.reply({
+        await interaction.editReply({
           embeds: [
             createEmbed({
               title: 'Ranking',
@@ -26,7 +29,6 @@ export default {
               color: EMBED_COLORS.RED,
             }),
           ],
-          ephemeral: true,
         });
         return;
       }
@@ -48,8 +50,14 @@ export default {
         const description = await Promise.all(
           pageUsers.map(async (user, index) => {
             const rank = start + index + 1;
-            const member = await getMember(user.id);
-            const memberName = member?.nickname || member?.user?.globalName || 'Usuário Anônimo';
+            let memberName;
+
+            try {
+              const member = await getMember(user.id);
+              memberName = member?.nickname || member?.user?.globalName || 'Usuário Anônimo';
+            } catch {
+              memberName = 'Usuário Anônimo';
+            }
 
             return `#${rank} **${memberName}**\n`
               + `🎯 **Nível:** ${user.level}\n`
@@ -66,7 +74,7 @@ export default {
       };
 
       const createButtons = (page) => {
-        const row = new ActionRowBuilder()
+        return new ActionRowBuilder()
           .addComponents(
             new ButtonBuilder()
               .setCustomId('prev')
@@ -79,16 +87,14 @@ export default {
               .setStyle(ButtonStyle.Primary)
               .setDisabled(page === Math.ceil(users.length / USERS_PER_PAGE) - 1),
           );
-        return row;
       };
 
       const initialEmbed = await createPageEmbed(currentPage);
       const buttons = createButtons(currentPage);
 
-      const message = await interaction.reply({
+      const message = await interaction.editReply({
         embeds: [initialEmbed],
         components: [buttons],
-        fetchReply: true,
       });
 
       const collector = message.createMessageComponentCollector({ time: 60000 });
@@ -155,16 +161,18 @@ export default {
       });
     } catch (error) {
       console.error('Erro ao gerar ranking:', error);
-      await interaction.reply({
-        embeds: [
-          createEmbed({
-            title: 'Erro',
-            description: 'Não foi possível gerar o ranking. Tente novamente mais tarde.',
-            color: EMBED_COLORS.RED,
-          }),
-        ],
-        ephemeral: true,
-      });
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({
+          embeds: [
+            createEmbed({
+              title: 'Erro',
+              description: 'Não foi possível gerar o ranking. Tente novamente mais tarde.',
+              color: EMBED_COLORS.RED,
+            }),
+          ],
+          ephemeral: true,
+        });
+      }
     }
   },
 };

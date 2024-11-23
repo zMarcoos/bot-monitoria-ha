@@ -18,9 +18,9 @@ export default class UserService {
       'number.base': `"xp" deve ser um número`,
       'number.min': `"xp" não pode ser negativo`,
     }),
-    level: Joi.number().integer().min(1).default(1).messages({
+    level: Joi.number().integer().min(0).default(0).messages({
       'number.base': `"level" deve ser um número`,
-      'number.min': `"level" deve ser no mínimo 1`,
+      'number.min': `"level" deve ser no mínimo 0`,
     }),
     role: Joi.string().default('Aprendiz de Algoritmos').messages({
       'string.base': `"role" deve ser um texto`,

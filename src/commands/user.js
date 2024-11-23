@@ -66,17 +66,15 @@ async function generateImageWithStars(character, starCount = 1, final = false) {
 
   if (final) {
     const firstRegion = regions[0];
-
     const centerX = (firstRegion.xMin + firstRegion.xMax) / 2;
     const centerY = (firstRegion.yMin + firstRegion.yMax) / 2;
 
     drawStar(context, centerX, centerY, 30, "yellow");
   } else {
+    const usedPositions = new Set();
+
     for (let index = 0; index < starCount; index++) {
       let randomRegion = regions[Math.floor(Math.random() * regions.length)];
-
-      const usedPositions = new Set();
-
       let x, y;
       let attempts = 0;
       const maxAttempts = 10;
@@ -92,14 +90,12 @@ async function generateImageWithStars(character, starCount = 1, final = false) {
         );
 
         const positionKey = `${x}-${y}`;
-
         if (!usedPositions.has(positionKey)) {
           usedPositions.add(positionKey);
           break;
         }
 
-        attempts += 1;
-
+        attempts++;
         if (attempts >= maxAttempts) {
           randomRegion = regions[Math.floor(Math.random() * regions.length)];
           attempts = 0;
@@ -126,14 +122,17 @@ export default {
         .addChoices({ name: "Avatar", value: "avatar" }),
     ),
   async execute(interaction) {
-    const action = interaction.options.getString("action");
+    await interaction.deferReply(); // Garante que a interação não expire
 
-    switch (action) {
-      case "avatar":
+    try {
+      const action = interaction.options.getString("action");
+
+      if (action === "avatar") {
         const userService = new UserService();
         const user = await userService.getUser(interaction.user.id);
+
         if (!user) {
-          await interaction.reply({
+          await interaction.editReply({
             content: "Você não está registrado no sistema.",
             embeds: [
               createEmbed({
@@ -143,7 +142,6 @@ export default {
                 color: EMBED_COLORS.RED,
               }),
             ],
-            ephemeral: true,
           });
           return;
         }
@@ -151,17 +149,16 @@ export default {
         const imageBuffer = await generateImageWithStars(
           user.character,
           user.activityHistory.length,
-          user.level == ROLES.length
+          user.level === ROLES.length,
         );
 
         const attachment = new AttachmentBuilder(imageBuffer, {
           name: "avatar.png",
         });
 
-        await interaction.reply({ files: [attachment] });
-        break;
-      default:
-        await interaction.reply({
+        await interaction.editReply({ files: [attachment] });
+      } else {
+        await interaction.editReply({
           embeds: [
             createEmbed({
               title: "Usuário",
@@ -169,9 +166,21 @@ export default {
               color: EMBED_COLORS.RED,
             }),
           ],
-          ephemeral: true,
         });
-        break;
+      }
+    } catch (error) {
+      console.error("Erro ao executar o comando 'usuario':", error);
+
+      await interaction.followUp({
+        embeds: [
+          createEmbed({
+            title: "Erro",
+            description: "Ocorreu um erro ao executar este comando.",
+            color: EMBED_COLORS.RED,
+          }),
+        ],
+        ephemeral: true,
+      });
     }
   },
 };
