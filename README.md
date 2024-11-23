@@ -8,3 +8,4 @@
 * Melhorar muito o design das embeds
 * Lançar erros quando não tiver bacana e depois lançar a mensagem do erro para a pessoa ver
 * Ver quais mensagens é interessante ser só ephemeral e quais são embeds
+* substituir todos os IDs pela matricula

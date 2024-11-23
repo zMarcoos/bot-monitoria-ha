@@ -1,12 +1,13 @@
-import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+import { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import ActivityService from '../database/services/activityService.js';
 import UserService from '../database/services/userService.js';
-import { createEmbed, getRandomAdventureImage } from '../utils/messageUtils.js';
+import { createEmbed } from '../utils/messageUtils.js';
 import { EMBED_COLORS } from '../utils/constants.js';
 import { getMember } from '../utils/userUtils.js';
-import { parse, isValid } from 'date-fns';
+import { parse, format, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+const ACTIVITIES_PER_PAGE = 5;
 const activityService = new ActivityService();
 const userService = new UserService();
 
@@ -100,7 +101,7 @@ export default {
           content: `Atividade "${title}" do tipo "${type}" para até a data "${deadline}" adicionada com sucesso.`,
           ephemeral: true,
         });
-        
+
         break;
       }
 
@@ -208,112 +209,6 @@ export default {
         break;
       }
 
-      case 'vincular': {
-        const userId = interaction.options.getUser('user')?.id;
-        if (!userId) {
-          await interaction.reply({
-            embeds: [
-              createEmbed({
-                title: 'Erro',
-                description: 'Usuário inválido.',
-                color: EMBED_COLORS.RED,
-              })
-            ],
-          });
-          return;
-        }
-
-        const user = await userService.getUser(userId);
-        if (!user) {
-          await interaction.reply({
-            embeds: [
-              createEmbed({
-                title: 'Erro',
-                description: 'Usuário não encontrado.',
-                color: EMBED_COLORS.RED,
-              })
-            ],
-          });
-          return;
-        }
-
-        const activity = await activityService.getActivity(interaction.options.getString('activity_id'));
-        if (!activity) {
-          await interaction.reply({
-            embeds: [
-              createEmbed({
-                title: 'Erro',
-                description: 'Atividade inválida.',
-                color: EMBED_COLORS.RED,
-              })
-            ],
-          });
-          return;
-        }
-
-        const previousLevel = user.level;
-
-        const data = await userService.addActivityToUser(userId, activity);
-        if (!data) {
-          await interaction.reply({
-            embeds: [
-              createEmbed({
-                title: 'Erro',
-                description: 'Não foi possível vincular a atividade.',
-                color: EMBED_COLORS.RED,
-              })
-            ],
-          });
-          return;
-        }
-
-        const member = await getMember(userId);
-        const channel = interaction.guild.channels.cache.get('1298472452955045929');
-
-        channel.send({
-          embeds: [
-            createEmbed({
-              title: 'Atividade completada',
-              description: `🎉 ${member.nickname || member.user.globalName} completou a atividade "${activity.title}"! 🎉`,
-              color: EMBED_COLORS.GREEN,
-              image: getRandomAdventureImage().url,
-            })
-          ],
-        });
-
-        if (previousLevel < data.level) {
-          try {
-            const role = interaction.guild.roles.cache.get(data.role.id);
-            await member.roles.add(role);
-
-            await channel.send({
-              embeds: [
-                createEmbed({
-                  title: 'Level up!',
-                  description: `🎉 ${member.nickname || member.user.globalName} subiu para o nível ${data.level}! 🎉`,
-                  color: EMBED_COLORS.GREEN,
-                  image: getRandomAdventureImage().url,
-                })
-              ],
-            })
-          } catch (error) {
-            console.error('Erro ao enviar mensagem de atividade:', error);
-          }
-        }
-
-        await interaction.reply({
-          embeds: [
-            createEmbed({
-              title: 'Atividade vinculada',
-              description: `Atividade "${activity.title}" vinculada ao usuário ${interaction.guild.members.cache.get(userId)}`,
-              color: EMBED_COLORS.GREEN,
-            })
-          ],
-        });
-
-        break;
-      }
-
       case 'listar': {
         const activities = await activityService.listActivities();
 
@@ -324,41 +219,150 @@ export default {
                 title: 'Erro',
                 description: 'Nenhuma atividade encontrada.',
                 color: EMBED_COLORS.RED,
-              })
+              }),
             ],
-            ephemeral: true
+            ephemeral: true,
           });
           return;
         }
 
-        const activityEmbeds = await Promise.all(
-          activities.map(async (activity) => {
-            const embed = new EmbedBuilder()
-              .setTitle(activity.title)
-              .setDescription(`ID: ${activity.id}\nTipo: ${activity.type}`)
-              .setColor('#0099ff');
+        let currentPage = 0;
 
-            const userNames = await Promise.all((activity.completed).map(async (userId) => {
-                try {
-                  const member = await getMember(userId);
-                  return `${member.nickname || member.user.globalName} (${member})`;
-                } catch (error) {
-                  console.error(`Erro ao buscar membro ${userId}:`, error);
-                  return `Usuário desconhecido (${userId})`;
-                }
-              })
+        const createPageEmbed = async (page) => {
+          const start = page * ACTIVITIES_PER_PAGE;
+          const end = start + ACTIVITIES_PER_PAGE;
+          const pageActivities = activities.slice(start, end);
+
+          const description = await Promise.all(
+            pageActivities.map(async (activity, index) => {
+              const users = await Promise.all(
+                (activity.completed || []).map(async (data) => {
+                  const user = await userService.getUser(data.userId);
+
+                  try {
+                    const member = await getMember(data.userId);
+                    return `${user.globalName || member.user.tag} (${user.enrollment})`;
+                  } catch {
+                    return `Usuário desconhecido (${user.enrollment})`;
+                  }
+                })
+              );
+
+              let formattedDeadline;
+              try {
+                const deadlineDate = activity.deadline.toDate();
+                formattedDeadline = isValid(deadlineDate)
+                  ? format(deadlineDate, "dd/MM/yyyy HH:mm '(Horário de Fortaleza)'", { locale: ptBR })
+                  : 'Data inválida';
+              } catch (error) {
+                console.error('Erro ao formatar data:', error);
+                formattedDeadline = 'Data inválida';
+              }
+
+              return `**#${activity.id} - ${activity.title}**\n`
+                + `🆔 **ID:** ${activity.id}\n`
+                + `📚 **Tipo:** ${activity.type}\n`
+                + `📅 **Prazo:** ${formattedDeadline}\n`
+                + `👥 **Usuários que completaram:** ${users.length > 0 ? users.join(', ') : 'Nenhum'}`;
+            })
+          ).then(lines => lines.join('\n\n'));
+
+          return new EmbedBuilder()
+            .setTitle('📋 Lista de Atividades')
+            .setDescription(description || 'Nenhuma atividade encontrada nesta página.')
+            .setFooter({ text: `Página ${page + 1} de ${Math.ceil(activities.length / ACTIVITIES_PER_PAGE)}` })
+            .setColor(EMBED_COLORS.BLUE);
+        };
+
+        const createButtons = (page) => {
+          const row = new ActionRowBuilder()
+            .addComponents(
+              new ButtonBuilder()
+                .setCustomId('prev')
+                .setLabel('⬅️ Anterior')
+                .setStyle(ButtonStyle.Primary)
+                .setDisabled(page === 0),
+              new ButtonBuilder()
+                .setCustomId('next')
+                .setLabel('➡️ Próximo')
+                .setStyle(ButtonStyle.Primary)
+                .setDisabled(page === Math.ceil(activities.length / ACTIVITIES_PER_PAGE) - 1),
             );
+          return row;
+        };
 
-            embed.addFields({
-              name: 'Usuários:',
-              value: userNames.length > 0 ? userNames.join(', ') : 'Nenhum usuário completou'
+        const initialEmbed = await createPageEmbed(currentPage);
+        const buttons = createButtons(currentPage);
+
+        const message = await interaction.reply({
+          embeds: [initialEmbed],
+          components: [buttons],
+          fetchReply: true,
+        });
+
+        const collector = message.createMessageComponentCollector({ time: 60000 });
+
+        collector.on('collect', async (btnInteraction) => {
+          if (btnInteraction.user.id !== interaction.user.id) {
+            await btnInteraction.reply({
+              content: 'Apenas o usuário que usou o comando pode interagir.',
+              ephemeral: true,
             });
+            return;
+          }
 
-            return embed;
-          })
-        );
+          try {
+            if (btnInteraction.customId === 'prev') {
+              currentPage -= 1;
+            } else if (btnInteraction.customId === 'next') {
+              currentPage += 1;
+            }
 
-        await interaction.reply({ embeds: activityEmbeds, ephemeral: true });
+            const updatedEmbed = await createPageEmbed(currentPage);
+            const updatedButtons = createButtons(currentPage);
+
+            await btnInteraction.update({
+              embeds: [updatedEmbed],
+              components: [updatedButtons],
+            });
+          } catch (error) {
+            console.error('Erro ao processar interação:', error);
+            if (error.code === 10008) {
+              await btnInteraction.reply({
+                content: 'A mensagem original foi deletada e a interação foi encerrada.',
+                ephemeral: true,
+              });
+            }
+          }
+        });
+
+        collector.on('end', async () => {
+          try {
+            const disabledButtons = new ActionRowBuilder()
+              .addComponents(
+                new ButtonBuilder()
+                  .setCustomId('prev')
+                  .setLabel('⬅️ Anterior')
+                  .setStyle(ButtonStyle.Primary)
+                  .setDisabled(true),
+                new ButtonBuilder()
+                  .setCustomId('next')
+                  .setLabel('➡️ Próximo')
+                  .setStyle(ButtonStyle.Primary)
+                  .setDisabled(true),
+              );
+
+            await message.edit({
+              components: [disabledButtons],
+            });
+          } catch (error) {
+            console.error('Erro ao desativar botões:', error);
+            if (error.code === 10008) {
+              console.log('Mensagem já foi deletada. Nenhuma ação necessária.');
+            }
+          }
+        });
+
         break;
       }
 

@@ -5,9 +5,11 @@ import { fileURLToPath } from "url";
 import path from "path";
 import UserService from "../database/services/userService.js";
 import { EMBED_COLORS } from "../utils/constants.js";
+import { ROLES } from "../levelling/level.js";
 
 const JAKE_REGIONS = [
-  { xMin: 60, yMin: 140, xMax: 182, yMax: 260 },
+  { xMin: 110, yMin: 140, xMax: 182, yMax: 260 },
+  { xMin: 60, yMin: 140, xMax: 110, yMax: 260 },
   { xMin: 60, yMin: 55, xMax: 80, yMax: 140 },
   { xMin: 185, yMin: 140, xMax: 220, yMax: 195 },
   { xMin: 185, yMin: 235, xMax: 220, yMax: 258 },
@@ -15,8 +17,8 @@ const JAKE_REGIONS = [
 ];
 
 const FINN_REGIONS = [
-  { xMin: 50, yMin: 160, xMax: 93, yMax: 240 },
   { xMin: 95, yMin: 190, xMax: 270, yMax: 270 },
+  { xMin: 50, yMin: 160, xMax: 93, yMax: 240 },
   { xMin: 300, yMin: 220, xMax: 335, yMax: 320 },
   { xMin: 210, yMin: 140, xMax: 270, yMax: 190 },
 ];
@@ -48,25 +50,11 @@ function drawStar(context, x, y, radius, color) {
   context.fill();
 }
 
-function drawRegionBoxes(context, regions) {
-  context.strokeStyle = "red";
-  context.lineWidth = 2;
-
-  regions.forEach((region) => {
-    context.strokeRect(
-      region.xMin,
-      region.yMin,
-      region.xMax - region.xMin,
-      region.yMax - region.yMin,
-    );
-  });
-}
-
-async function generateImageWithStars(character, starCount = 1) {
+async function generateImageWithStars(character, starCount = 1, final = false) {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
   const background = await loadImage(
-    path.join(__dirname, `../../assets/${character}.png`),
+    path.join(__dirname, `../../assets/${character}.png`)
   );
 
   const canvas = createCanvas(background.width, background.height);
@@ -74,44 +62,52 @@ async function generateImageWithStars(character, starCount = 1) {
 
   context.drawImage(background, 0, 0, canvas.width, canvas.height);
 
-  for (let index = 0; index < starCount; index++) {
-    const regions = character === "Finn" ? FINN_REGIONS : JAKE_REGIONS;
-    drawRegionBoxes(context, regions);
-    let randomRegion = regions[Math.floor(Math.random() * regions.length)];
+  const regions = character === "Finn" ? FINN_REGIONS : JAKE_REGIONS;
 
-    const usedPositions = new Set();
+  if (final) {
+    const firstRegion = regions[0];
 
-    let x, y;
-    let attempts = 0;
-    const maxAttempts = 10;
+    const centerX = (firstRegion.xMin + firstRegion.xMax) / 2;
+    const centerY = (firstRegion.yMin + firstRegion.yMax) / 2;
 
-    do {
-      x = Math.floor(
-        Math.random() * (randomRegion.xMax - randomRegion.xMin) +
-          randomRegion.xMin,
-      );
-      y = Math.floor(
-        Math.random() * (randomRegion.yMax - randomRegion.yMin) +
-          randomRegion.yMin,
-      );
+    drawStar(context, centerX, centerY, 30, "yellow");
+  } else {
+    for (let index = 0; index < starCount; index++) {
+      let randomRegion = regions[Math.floor(Math.random() * regions.length)];
 
-      const positionKey = `${x}-${y}`;
+      const usedPositions = new Set();
 
-      if (!usedPositions.has(positionKey)) {
-        usedPositions.add(positionKey);
-        break;
-      }
+      let x, y;
+      let attempts = 0;
+      const maxAttempts = 10;
 
-      attempts += 1;
+      do {
+        x = Math.floor(
+          Math.random() * (randomRegion.xMax - randomRegion.xMin) +
+            randomRegion.xMin
+        );
+        y = Math.floor(
+          Math.random() * (randomRegion.yMax - randomRegion.yMin) +
+            randomRegion.yMin
+        );
 
-      if (attempts >= maxAttempts) {
-        randomRegion = regions[Math.floor(Math.random() * regions.length)];
-        attempts = 0;
-      }
-    } while (true);
+        const positionKey = `${x}-${y}`;
 
-    const starSize = 10;
-    drawStar(context, x, y, starSize, "yellow");
+        if (!usedPositions.has(positionKey)) {
+          usedPositions.add(positionKey);
+          break;
+        }
+
+        attempts += 1;
+
+        if (attempts >= maxAttempts) {
+          randomRegion = regions[Math.floor(Math.random() * regions.length)];
+          attempts = 0;
+        }
+      } while (true);
+
+      drawStar(context, x, y, 10, "yellow");
+    }
   }
 
   return canvas.toBuffer("image/png");
@@ -124,15 +120,15 @@ export default {
     .setDescription("Comando de usuários")
     .addStringOption((option) =>
       option
-        .setName("acao")
+        .setName("action")
         .setDescription("Categoria de ação")
         .setRequired(true)
         .addChoices({ name: "Avatar", value: "avatar" }),
     ),
   async execute(interaction) {
-    const acao = interaction.options.getString("acao");
+    const action = interaction.options.getString("action");
 
-    switch (acao) {
+    switch (action) {
       case "avatar":
         const userService = new UserService();
         const user = await userService.getUser(interaction.user.id);
@@ -155,10 +151,13 @@ export default {
         const imageBuffer = await generateImageWithStars(
           user.character,
           user.activityHistory.length,
+          user.level == ROLES.length
         );
+
         const attachment = new AttachmentBuilder(imageBuffer, {
           name: "avatar.png",
         });
+
         await interaction.reply({ files: [attachment] });
         break;
       default:
