@@ -109,9 +109,9 @@ export default {
           { name: 'Avatar', value: 'avatar' },
         )),
   async execute(interaction) {
-    const acao = interaction.options.getString('acao');
+    const action = interaction.options.getString('acao');
 
-    switch (acao) {
+    switch (action) {
       case 'avatar':
         const userService = new UserService();
         const user = await userService.getUser(interaction.user.id);

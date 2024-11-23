@@ -16,6 +16,47 @@ export async function deleteMessage(message, time = 5000) {
   }, time);
 }
 
+export async function loadMessages(channel) {
+  try {
+    const allMessages = [];
+    let lastMessageId = null;
+
+    while (true) {
+      const fetchedMessages = await channel.messages.fetch({ limit: 100, before: lastMessageId });
+
+      if (fetchedMessages.size === 0) break;
+
+      allMessages.push(...fetchedMessages.values());
+      lastMessageId = fetchedMessages.last().id;
+    }
+
+    if (allMessages.length === 0) {
+      console.log('Nenhuma mensagem encontrada.');
+      return;
+    }
+
+    await Promise.all(
+      allMessages.map(async (message) => {
+        await Promise.all(
+          message.reactions.cache.map(async (reaction) => {
+            if (reaction.partial) {
+              try {
+                await reaction.fetch();
+              } catch (error) {
+                console.error(`Erro ao buscar reação: ${error.message}`);
+              }
+            }
+          })
+        );
+      })
+    );
+
+    console.log('Processamento de mensagens completo.');
+  } catch (error) {
+    console.error('Erro ao buscar mensagens:', error);
+  }
+}
+
 export function getRandomAdventureImage() {
   const assetsPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../assets');
 
@@ -47,21 +88,21 @@ export function createEmbed({
   if (description) embed.setDescription(description);
   if (color) embed.setColor(color);
   if (fields.length > 0) embed.addFields(fields);
-  if (footer) embed.setFooter({ text: footer.content || '', iconURL: footer.iconURL || null });
+
+  if (footer && footer.text) {
+    embed.setFooter({
+      text: footer.text,
+      iconURL: footer.iconURL || null,
+    });
+  }
+
   if (thumbnail) embed.setThumbnail(thumbnail);
   if (image) embed.setImage(image);
 
   if (author) {
-    let iconURL = '';
-    if (author.displayAvatarURL) {
-      iconURL = author.displayAvatarURL({ dynamic: true });
-    } else if (author.iconURL) {
-      iconURL = author.iconURL({ dynamic: true });
-    }
-
     embed.setAuthor({
       name: author.name || author.username || 'Desconhecido',
-      iconURL: iconURL || null,
+      iconURL: author.iconURL || null,
     });
   }
 

@@ -69,9 +69,10 @@ export async function collectSequentialReactions(member, channel, questions) {
 
 export async function collectSequentialResponses(member, channel, questions) {
   const answers = {};
+  const messagesToDelete = [];
 
-  for (const { key, question, validate } of questions) {
-    await channel.send({
+  for (const { key, question, validate, deletable = false } of questions) {
+    const questionMessage = await channel.send({
       embeds: [
         createEmbed({
           title: '❓ Pergunta',
@@ -81,6 +82,10 @@ export async function collectSequentialResponses(member, channel, questions) {
       ],
     });
 
+    if (deletable) {
+      messagesToDelete.push(questionMessage);
+    }
+
     const response = await createCollector({
       channel,
       CollectorClass: MessageCollector,
@@ -88,7 +93,7 @@ export async function collectSequentialResponses(member, channel, questions) {
       time: TIME_LIMIT,
       onCollect: async (message, resolve, collector) => {
         if (validate && !validate(message.content)) {
-          await channel.send({
+          const errorMessage = await channel.send({
             embeds: [
               createEmbed({
                 title: 'Erro',
@@ -96,14 +101,23 @@ export async function collectSequentialResponses(member, channel, questions) {
                 color: 'ff5555',
               }),
             ],
-          }).then(deleteMessage);
+          });
+
+          if (deletable) {
+            messagesToDelete.push(errorMessage);
+          }
         } else {
           resolve(message.content.trim());
+
+          if (deletable) {
+            messagesToDelete.push(message);
+          }
+
           collector.stop('collected');
         }
       },
       onEnd: async () => {
-        await channel.send({
+        const timeoutMessage = await channel.send({
           embeds: [
             createEmbed({
               title: 'Erro',
@@ -111,11 +125,23 @@ export async function collectSequentialResponses(member, channel, questions) {
               color: 'ff5555',
             }),
           ],
-        }).then(deleteMessage);
+        });
+
+        if (deletable) {
+          messagesToDelete.push(timeoutMessage);
+        }
       },
     });
 
     answers[key] = response || 'Sem resposta';
+  }
+
+  for (const message of messagesToDelete) {
+    try {
+      await message.delete();
+    } catch (error) {
+      console.error(`Erro ao deletar mensagem: ${error.message}`);
+    }
   }
 
   return answers;

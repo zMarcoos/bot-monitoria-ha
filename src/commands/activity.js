@@ -4,6 +4,8 @@ import UserService from '../database/services/userService.js';
 import { createEmbed, getRandomAdventureImage } from '../utils/messageUtils.js';
 import { EMBED_COLORS } from '../utils/constants.js';
 import { getMember } from '../utils/userUtils.js';
+import { parse, isValid } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 const activityService = new ActivityService();
 const userService = new UserService();
@@ -29,18 +31,22 @@ export default {
               { name: 'Prático', value: 'pratico' },
               { name: 'Desafio', value: 'desafio' },
               { name: 'Trabalho', value: 'trabalho' }
-            )))
+            ))
+        .addStringOption(option =>
+          option.setName('date')
+            .setDescription('Data de entrega da atividade (padrão dia/mes/ano hora:minuto)')
+            .setRequired(true)))
     .addSubcommand(subcommand =>
       subcommand
-        .setName('vincular')
-        .setDescription('Vincular uma atividade a um estudante')
-        .addUserOption(option =>
-          option.setName('user')
-            .setDescription('Usuário a vincular')
-            .setRequired(true))
+        .setName('submeter')
+        .setDescription('Submeter a atividade do estudante')
         .addStringOption(option =>
           option.setName('activity_id')
             .setDescription('ID da atividade')
+            .setRequired(true))
+        .addStringOption(option =>
+          option.setName('response')
+            .setDescription('Texto de resposta da atividade')
             .setRequired(true)))
     .addSubcommand(subcommand =>
       subcommand
@@ -49,31 +55,156 @@ export default {
 
   async execute(interaction) {
     const subcommand = interaction.options.getSubcommand();
-    if (subcommand === 'adicionar' || subcommand === 'vincular') {
-      const member = interaction.member;
-
-      if (!member.roles.cache.some(role => role.id === '1298472442565623818')) {
-        await interaction.reply({
-          embeds: [
-            createEmbed({
-              title: 'Erro',
-              description: 'Você não tem permissão para executar este comando.',
-              color: EMBED_COLORS.RED,
-            })
-          ],
-          ephemeral: true
-        });
-        return;
-      }
-    }
 
     switch (subcommand) {
       case 'adicionar': {
+        const member = interaction.member;
+
+        if (!member.roles.cache.some(role => role.id === '1298472442565623818')) {
+          await interaction.reply({
+            embeds: [
+              createEmbed({
+                title: 'Erro',
+                description: 'Você não tem permissão para executar este comando.',
+                color: EMBED_COLORS.RED,
+              })
+            ],
+            ephemeral: true
+          });
+          return;
+        }
+
         const title = interaction.options.getString('title');
         const type = interaction.options.getString('type');
+        const date = interaction.options.getString('date');
 
-        await activityService.addActivity({ title, type, completedBy: [], createdAt: new Date() });
-        await interaction.reply(`Atividade "${title}" do tipo "${type}" adicionada com sucesso.`);
+        const dateRegex = /^([0-2][0-9]|3[0-1])\/(0[1-9]|1[0-2])\/\d{4} ([0-1][0-9]|2[0-3]):[0-5][0-9]$/;
+        if (!dateRegex.test(date)) {
+          await interaction.reply({
+            embeds: [
+              createEmbed({
+                title: 'Erro',
+                description: 'Data inválida. Utilize o formato dia/mês/ano hora:minuto.',
+                color: EMBED_COLORS.RED,
+              })
+            ],
+            ephemeral: true
+          });
+          return;
+        }
+
+        const deadline = parse(date, 'dd/MM/yyyy HH:mm', new Date());
+
+        await activityService.addActivity({ title, type, deadline });
+        await interaction.reply({
+          content: `Atividade "${title}" do tipo "${type}" para até a data "${deadline}" adicionada com sucesso.`,
+          ephemeral: true,
+        });
+        
+        break;
+      }
+
+      case 'submeter': {
+        const activityId = interaction.options.getString('activity_id');
+        let response = interaction.options.getString('response')?.trim();
+
+        if (!response) {
+          await interaction.reply({
+            embeds: [
+              createEmbed({
+                title: 'Erro',
+                description: 'A resposta não pode estar vazia.',
+                color: EMBED_COLORS.RED,
+              })
+            ],
+            ephemeral: true,
+          });
+          return;
+        }
+
+        const activity = await activityService.getActivity(activityId);
+        if (!activity) {
+          await interaction.reply({
+            embeds: [
+              createEmbed({
+                title: 'Erro',
+                description: 'Atividade inválida.',
+                color: EMBED_COLORS.RED,
+              })
+            ],
+            ephemeral: true
+          });
+          return;
+        }
+
+        const userId = interaction.user.id;
+        const activityChannel = interaction.guild.channels.cache.get('1309657893460512902');
+
+        const alreadySubmitted = activity.pending.some(submission => submission.userId === userId);
+        if (alreadySubmitted) {
+          await interaction.reply({
+            embeds: [
+              createEmbed({
+                title: 'Submissão duplicada',
+                description: 'Você já submeteu uma resposta para esta atividade e ela está pendente de aprovação.',
+                color: EMBED_COLORS.RED,
+              })
+            ],
+            ephemeral: true
+          });
+          return;
+        }
+
+        try {
+          await activityService.addPendingResponse(activityId, {
+            userId,
+            submissionDate: new Date(),
+            content: response,
+          });
+
+          const message = await activityChannel.send({
+            embeds: [
+              createEmbed({
+                title: 'Nova submissão',
+                description: `Nova submissão para a atividade "${activity.title}" de ${interaction.user} (${interaction.user.tag}).`,
+                color: EMBED_COLORS.BLUE,
+                fields: [
+                  { name: 'ID da atividade:', value: activityId },
+                  { name: 'Resposta:', value: response },
+                  { name: 'Data submissão:', value: new Date().toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' }) },
+                ],
+                footer: { text: userId, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) },
+              })
+            ]
+          });
+
+          await message.react('✅');
+          await message.react('❌');
+
+          await interaction.reply({
+            embeds: [
+              createEmbed({
+                author: { name: interaction.user.tag, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) },
+                title: 'Submissão realizada',
+                description: `Sua resposta foi enviada para a atividade "${activity.title}" e está pendente de aprovação.`,
+                color: EMBED_COLORS.GREEN,
+              })
+            ],
+            ephemeral: true,
+          });
+        } catch (error) {
+          console.error('Erro ao submeter resposta:', error);
+          await interaction.reply({
+            embeds: [
+              createEmbed({
+                title: 'Erro',
+                description: 'Não foi possível submeter sua resposta. Tente novamente mais tarde.',
+                color: EMBED_COLORS.RED,
+              })
+            ],
+            ephemeral: true,
+          });
+        }
         break;
       }
 
@@ -179,6 +310,7 @@ export default {
             })
           ],
         });
+
         break;
       }
 
@@ -206,14 +338,22 @@ export default {
               .setDescription(`ID: ${activity.id}\nTipo: ${activity.type}`)
               .setColor('#0099ff');
 
-            const userNames = await Promise.all(
-              activity.completedBy.map(async (userId) => {
-                const member = await getMember(userId);
-                return `${member.nickname || member.user.globalName} (${member})`;
+            const userNames = await Promise.all((activity.completed).map(async (userId) => {
+                try {
+                  const member = await getMember(userId);
+                  return `${member.nickname || member.user.globalName} (${member})`;
+                } catch (error) {
+                  console.error(`Erro ao buscar membro ${userId}:`, error);
+                  return `Usuário desconhecido (${userId})`;
+                }
               })
             );
 
-            embed.addFields({ name: 'Usuários:', value: userNames.join(', ') || 'Nenhum usuário completou' });
+            embed.addFields({
+              name: 'Usuários:',
+              value: userNames.length > 0 ? userNames.join(', ') : 'Nenhum usuário completou'
+            });
+
             return embed;
           })
         );

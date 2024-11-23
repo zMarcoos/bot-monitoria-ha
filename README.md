@@ -6,3 +6,5 @@
 * Estrela no meio
 * Fazer o mecanismo de aceitar as questões automaticamente por reações e enviar para um canal para ser analisado
 * Melhorar muito o design das embeds
+* Lançar erros quando não tiver bacana e depois lançar a mensagem do erro para a pessoa ver
+* Ver quais mensagens é interessante ser só ephemeral e quais são embeds
