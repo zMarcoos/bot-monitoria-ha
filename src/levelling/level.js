@@ -24,11 +24,9 @@ export async function calculateLevelXPDistribution(recalculate = false) {
 
   const activityService = new ActivityService();
   try {
-    // Recupera todas as atividades
     const allActivities = await activityService.listActivities() || [];
     console.log('Atividades recuperadas:', allActivities);
 
-    // Calcula o total de XP com base no tipo das atividades
     const activityCounts = allActivities.reduce((accumulator, activity) => {
       accumulator[activity.type] = (accumulator[activity.type] || 0) + 1;
       return accumulator;

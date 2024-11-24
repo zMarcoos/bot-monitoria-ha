@@ -6,6 +6,7 @@ import UserService from '../database/services/userService.js';
 import CustomError from '../exceptions/customError.js';
 
 const WELCOME_CHANNEL_ID = '1298472460156403752';
+const INITIAL_LEVEL_ROLE_ID = '1309353021490200627';
 
 const MAPPINGS = {
   characters: {
@@ -67,13 +68,14 @@ async function assignRoleAndNickname(member, courseName, characterName) {
 
   const course = MAPPINGS.courses[courseEmoji];
   const role = member.guild.roles.cache.get(course.roleId);
+  const initialRole = member.guild.roles.cache.get(INITIAL_LEVEL_ROLE_ID);
 
-  if (!role) {
+  if (!role || !initialRole) {
     console.log(`Cargo não encontrado para o usuário ${member.user.tag}.`);
     return;
   }
 
-  await member.roles.add(role);
+  await member.roles.add([role, initialRole]);
   await member.setNickname(`${characterEmoji} ${member.user.username}`);
 }
 
