@@ -3,6 +3,7 @@ import { loadCommands, loadListeners, loadSlashCommands } from './handler.js';
 import { calculateLevelXPDistribution } from './levelling/level.js';
 import { initScheduler } from './scheduler/scheduler.js';
 import { config } from 'dotenv';
+import CustomError from './exceptions/customError.js';
 
 config();
 
@@ -30,12 +31,13 @@ async function initializeBot() {
     await calculateLevelXPDistribution();
 
     console.log("Bot inicializado com sucesso!");
+
+    await client.login(process.env.DISCORD_TOKEN);
+    console.log("Bot logado com sucesso!");
   } catch (error) {
-    console.error("Erro durante a inicialização do bot:", error);
+    CustomError.logger(error, 'initializeBot');
     process.exit(1);
   }
-
-  client.login(process.env.DISCORD_TOKEN);
 }
 
 initializeBot();

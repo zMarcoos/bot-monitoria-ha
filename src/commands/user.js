@@ -1,11 +1,10 @@
 import { SlashCommandBuilder, AttachmentBuilder } from "discord.js";
 import { createCanvas, loadImage } from "canvas";
-import { createEmbed } from "../utils/messageUtils.js";
 import { fileURLToPath } from "url";
 import path from "path";
 import UserService from "../database/services/userService.js";
-import { EMBED_COLORS } from "../utils/constants.js";
 import { ROLES } from "../levelling/level.js";
+import CustomError from "../exceptions/customError.js";
 
 const JAKE_REGIONS = [
   { xMin: 110, yMin: 140, xMax: 182, yMax: 260 },
@@ -124,45 +123,32 @@ export default {
   async execute(interaction) {
     const action = interaction.options.getString("action");
 
-    if (action === "avatar") {
-      const userService = new UserService();
-      const user = await userService.getUser(interaction.user.id);
+    try {
+      switch (action) {
+        case "avatar":
+          const userService = new UserService();
+          const user = await userService.getUser(interaction.user.id);
 
-      if (!user) {
-        await interaction.editReply({
-          content: "Você não está registrado no sistema.",
-          embeds: [
-            createEmbed({
-              title: "Registro",
-              description:
-                "Você não está registrado. Entre novamente no servidor!",
-              color: EMBED_COLORS.RED,
-            }),
-          ],
-        });
-        return;
+          const imageBuffer = await generateImageWithStars(
+            user.character,
+            user.activityHistory.length,
+            user.level === ROLES.length,
+          );
+
+          const attachment = new AttachmentBuilder(imageBuffer, {
+            name: "avatar.png",
+          });
+
+          await interaction.editReply({
+            files: [attachment],
+            ephemeral: true,
+          });
+          break;
       }
-
-      const imageBuffer = await generateImageWithStars(
-        user.character,
-        user.activityHistory.length,
-        user.level === ROLES.length,
-      );
-
-      const attachment = new AttachmentBuilder(imageBuffer, {
-        name: "avatar.png",
-      });
-
-      await interaction.editReply({ files: [attachment] });
-    } else {
+    } catch (error) {
       await interaction.editReply({
-        embeds: [
-          createEmbed({
-            title: "Usuário",
-            description: "Ação não encontrada.",
-            color: EMBED_COLORS.RED,
-          }),
-        ],
+        embeds: [CustomError.getFormattedMessage(error)],
+        ephemeral: true,
       });
     }
   },

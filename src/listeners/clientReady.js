@@ -1,5 +1,6 @@
 import { Events } from 'discord.js';
 import { loadMessages } from '../utils/messageUtils.js';
+import CustomError from '../exceptions/customError.js';
 
 export default {
   once: true,
@@ -8,8 +9,16 @@ export default {
     console.log(`Estou pronto como ${client.user.tag}!`);
 
     const activityChannel = client.channels.cache.get('1309657893460512902');
-    if (!activityChannel) return;
+    if (!activityChannel) {
+      console.log('Canal de submissões não encontrado!');
+      return;
+    }
 
-    loadMessages(activityChannel);
+    try {
+      await loadMessages(activityChannel);
+      console.log('Mensagens carregadas com sucesso!');
+    } catch (error) {
+      CustomError.logger(error, 'clientReady');
+    }
   },
-}
+};

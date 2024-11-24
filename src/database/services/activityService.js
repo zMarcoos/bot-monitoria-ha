@@ -1,5 +1,6 @@
 import database from '../firebase.js';
 import Joi from 'joi';
+import CustomError from '../../exceptions/customError.js';
 
 export default class ActivityService {
   constructor(collectionName = 'atividades') {
@@ -68,30 +69,51 @@ export default class ActivityService {
   });
 
   async getNextActivityId() {
-    const snapshot = await this.collection.get();
-    const nextId = snapshot.size + 1;
-    return nextId.toString();
+    try {
+      const snapshot = await this.collection.get();
+      return (snapshot.size + 1).toString();
+    } catch (error) {
+      throw new CustomError(
+        'Erro ao gerar ID de atividade',
+        'Não foi possível calcular o próximo ID para atividades.',
+        { code: 500 }
+      );
+    }
   }
 
   async getLastActivity() {
-    const snapshot = await this.collection.orderBy('createdAt', 'desc').limit(1).get();
-    return snapshot.empty ? null : { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+    try {
+      const snapshot = await this.collection.orderBy('createdAt', 'desc').limit(1).get();
+      return snapshot.empty ? null : { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+    } catch (error) {
+      throw new CustomError(
+        'Erro ao buscar última atividade',
+        'Não foi possível recuperar a última atividade registrada.',
+        { code: 500 }
+      );
+    }
   }
 
   async addActivity(activityData) {
     const { error, value } = this.activitySchema.validate(activityData, { stripUnknown: true });
     if (error) {
-      console.error('Dados inválidos para atividade:', error.details[0].message);
-      return;
+      throw new CustomError(
+        'Erro de validação de atividade',
+        `Os dados fornecidos para a atividade são inválidos: ${error.details.map(err => err.message).join(', ')}`,
+        { code: 400 }
+      );
     }
 
     try {
       const activityId = await this.getNextActivityId();
-      const newActivityRef = this.collection.doc(activityId);
-      await newActivityRef.set(value);
+      await this.collection.doc(activityId).set(value);
       console.info(`Atividade "${activityData.title}" adicionada com sucesso com o ID ${activityId}.`);
     } catch (error) {
-      console.error('Erro ao adicionar atividade:', error);
+      throw new CustomError(
+        'Erro ao adicionar atividade',
+        `Não foi possível adicionar a atividade "${activityData.title}".`,
+        { code: 500 }
+      );
     }
   }
 
@@ -101,21 +123,25 @@ export default class ActivityService {
       const activityDoc = await activityRef.get();
 
       if (!activityDoc.exists) {
-        throw new Error('Atividade não encontrada.');
+        throw new CustomError(
+          'Atividade não encontrada',
+          `A atividade com ID ${activityId} não foi encontrada.`,
+          { code: 404 }
+        );
       }
 
       const activityData = activityDoc.data();
       const pending = activityData.pending || [];
       const completed = activityData.completed || [];
 
-      if (activityData.deadline && new Date() > new Date(activityData.deadline)) {
-        throw new Error('A atividade está fora do prazo.');
-      }
-
       const submissionIndex = pending.findIndex(submission => submission.userId === userId);
 
       if (submissionIndex === -1) {
-        throw new Error('Submissão pendente não encontrada para o usuário.');
+        throw new CustomError(
+          'Submissão pendente não encontrada',
+          `Submissão pendente para o usuário ${userId} não foi encontrada.`,
+          { code: 404 }
+        );
       }
 
       const [submission] = pending.splice(submissionIndex, 1);
@@ -125,8 +151,11 @@ export default class ActivityService {
 
       console.info(`Submissão aprovada: ${userId} para a atividade ${activityId}.`);
     } catch (error) {
-      console.error('Erro ao aprovar submissão:', error.message);
-      throw new Error('Erro ao aprovar submissão.');
+      throw new CustomError(
+        'Erro ao aprovar submissão',
+        `Não foi possível aprovar a submissão do usuário ${userId} para a atividade ${activityId}.`,
+        { code: 500 }
+      );
     }
   }
 
@@ -136,7 +165,11 @@ export default class ActivityService {
       const activityDoc = await activityRef.get();
 
       if (!activityDoc.exists) {
-        throw new Error('Atividade não encontrada.');
+        throw new CustomError(
+          'Atividade não encontrada',
+          `A atividade com ID ${activityId} não foi encontrada.`,
+          { code: 404 }
+        );
       }
 
       const activityData = activityDoc.data();
@@ -145,7 +178,11 @@ export default class ActivityService {
       const submissionIndex = pending.findIndex(submission => submission.userId === userId);
 
       if (submissionIndex === -1) {
-        throw new Error('Submissão pendente não encontrada para o usuário.');
+        throw new CustomError(
+          'Submissão pendente não encontrada',
+          `Submissão pendente para o usuário ${userId} não foi encontrada.`,
+          { code: 404 }
+        );
       }
 
       pending.splice(submissionIndex, 1);
@@ -154,8 +191,11 @@ export default class ActivityService {
 
       console.info(`Submissão rejeitada: ${userId} para a atividade ${activityId}.`);
     } catch (error) {
-      console.error('Erro ao rejeitar submissão:', error.message);
-      throw new Error('Erro ao rejeitar submissão.');
+      throw new CustomError(
+        'Erro ao rejeitar submissão',
+        `Não foi possível rejeitar a submissão do usuário ${userId} para a atividade ${activityId}.`,
+        { code: 500 }
+      );
     }
   }
 
@@ -164,8 +204,11 @@ export default class ActivityService {
       const snapshot = await this.collection.get();
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
-      console.error('Erro ao listar atividades:', error);
-      return [];
+      throw new CustomError(
+        'Erro ao listar atividades',
+        'Não foi possível recuperar a lista de atividades.',
+        { code: 500 }
+      );
     }
   }
 
@@ -175,7 +218,11 @@ export default class ActivityService {
       const activityDoc = await activityRef.get();
 
       if (!activityDoc.exists) {
-        throw new Error('Atividade não encontrada.');
+        throw new CustomError(
+          'Atividade não encontrada',
+          `A atividade com ID ${activityId} não foi encontrada.`,
+          { code: 404 }
+        );
       }
 
       const activityData = activityDoc.data();
@@ -183,17 +230,27 @@ export default class ActivityService {
       const completed = activityData.completed || [];
 
       if (activityData.deadline && new Date() > new Date(activityData.deadline)) {
-        throw new Error('A atividade está fora do prazo e não pode mais receber respostas.');
+        throw new CustomError(
+          'Prazo expirado',
+          `A atividade ${activityId} está fora do prazo.`,
+          { code: 400 }
+        );
       }
 
-      const alreadyCompleted = completed.some(completion => completion.userId === pendingData.userId);
-      if (alreadyCompleted) {
-        throw new Error('O usuário já completou esta atividade.');
+      if (completed.some(completion => completion.userId === pendingData.userId)) {
+        throw new CustomError(
+          'Atividade já completada',
+          `O usuário ${pendingData.userId} já completou a atividade ${activityId}.`,
+          { code: 409 }
+        );
       }
 
-      const alreadyPending = pending.some(submission => submission.userId === pendingData.userId);
-      if (alreadyPending) {
-        throw new Error('O usuário já possui uma submissão pendente para esta atividade.');
+      if (pending.some(submission => submission.userId === pendingData.userId)) {
+        throw new CustomError(
+          'Submissão pendente duplicada',
+          `O usuário ${pendingData.userId} já possui uma submissão pendente para a atividade ${activityId}.`,
+          { code: 409 }
+        );
       }
 
       pending.push(pendingData);
@@ -202,8 +259,11 @@ export default class ActivityService {
 
       console.info(`Resposta pendente adicionada para a atividade ${activityId}.`);
     } catch (error) {
-      console.error(`Erro ao adicionar resposta pendente: ${error.message}`);
-      throw new Error(`Erro ao adicionar resposta pendente: ${error.message}`);
+      throw new CustomError(
+        'Erro ao adicionar resposta pendente',
+        `Não foi possível adicionar a resposta pendente para a atividade ${activityId}.`,
+        { code: 500 }
+      );
     }
   }
 
@@ -212,8 +272,11 @@ export default class ActivityService {
       const doc = await this.collection.doc(activityId).get();
       return doc.exists ? { id: doc.id, ...doc.data() } : null;
     } catch (error) {
-      console.error('Erro ao buscar atividade:', error);
-      return null;
+      throw new CustomError(
+        'Erro ao buscar atividade',
+        `Não foi possível buscar a atividade com ID ${activityId}.`,
+        { code: 500 }
+      );
     }
   }
 
@@ -226,8 +289,11 @@ export default class ActivityService {
       const activityDoc = await activityRef.get();
 
       if (!userDoc.exists || !activityDoc.exists) {
-        console.error('Usuário ou atividade não encontrados.');
-        return;
+        throw new CustomError(
+          'Usuário ou atividade não encontrados',
+          `Não foi possível encontrar o usuário ${userId} ou a atividade ${activityId}.`,
+          { code: 404 }
+        );
       }
 
       const userActivities = userDoc.data().activityHistory || [];
@@ -236,7 +302,11 @@ export default class ActivityService {
       await userRef.update({ activityHistory: userActivities });
       console.info(`Atividade ${activityId} vinculada ao usuário ${userId}.`);
     } catch (error) {
-      console.error('Erro ao vincular atividade ao usuário:', error);
+      throw new CustomError(
+        'Erro ao vincular atividade ao usuário',
+        `Não foi possível vincular a atividade ${activityId} ao usuário ${userId}.`,
+        { code: 500 }
+      );
     }
   }
 }

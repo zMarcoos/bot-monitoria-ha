@@ -3,6 +3,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import database from '../firebase.js';
 import ActivityService from './activityService.js';
 import { ROLES, determineUserLevel, calculateUserExperience } from '../../levelling/level.js';
+import CustomError from '../../exceptions/customError.js';
 
 export default class UserService {
   constructor(collectionName = 'usuarios') {
@@ -53,127 +54,167 @@ export default class UserService {
     try {
       return (await this.collection.doc(userId).get()).data() || null;
     } catch (error) {
-      console.error('Erro ao buscar usuário:', error);
-      return null;
+      throw new CustomError(
+        'Erro ao buscar usuário',
+        `Não foi possível buscar o usuário com ID ${userId}.`,
+        { code: 500 }
+      );
     }
   }
 
   async addUser(userId, userData) {
     const { error } = this.userSchema.validate(userData);
     if (error) {
-      console.error('Erro de validação ao adicionar usuário:', error.details.map(err => err.message));
-      return;
+      throw new CustomError(
+        'Erro de validação',
+        `Os dados fornecidos para o usuário ${userId} são inválidos: ${error.details.map(err => err.message).join(', ')}`,
+        { code: 400 }
+      );
     }
 
     try {
       if (await this.getUser(userId)) {
-        console.error('Usuário já existe no banco de dados.');
-        return;
+        throw new CustomError(
+          'Usuário duplicado',
+          `O usuário com ID ${userId} já existe no banco de dados.`,
+          { code: 409 }
+        );
       }
 
       await this.collection.doc(userId).set(userData);
-      console.info(`Usuário adicionado com sucesso no banco de dados.`);
+      console.info(`Usuário com ID ${userId} adicionado com sucesso.`);
     } catch (error) {
-      console.error('Erro ao adicionar usuário:', error);
+      throw new CustomError(
+        'Erro ao adicionar usuário',
+        `Não foi possível adicionar o usuário com ID ${userId}.`,
+        { code: 500 }
+      );
     }
   }
 
   async removeUser(userId) {
     try {
       await this.collection.doc(userId).delete();
-      console.log(`Usuário com ID ${userId} removido com sucesso.`);
+      console.info(`Usuário com ID ${userId} removido com sucesso.`);
     } catch (error) {
-      console.error('Erro ao remover usuário:', error);
+      throw new CustomError(
+        'Erro ao remover usuário',
+        `Não foi possível remover o usuário com ID ${userId}.`,
+        { code: 500 }
+      );
     }
   }
 
   async listUsers() {
     try {
       const snapshot = await this.collection.get();
-      const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      return users;
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
-      console.error('Erro ao listar usuários:', error);
-      return [];
+      throw new CustomError(
+        'Erro ao listar usuários',
+        'Não foi possível recuperar a lista de usuários.',
+        { code: 500 }
+      );
     }
   }
 
   async updateUser(userId, updatedData) {
     try {
-      if (!(await this.getUser(userId))) return;
+      const user = await this.getUser(userId);
+      if (!user) {
+        throw new CustomError(
+          'Usuário não encontrado',
+          `Usuário com ID ${userId} não foi encontrado.`,
+          { code: 404 }
+        );
+      }
 
       await this.collection.doc(userId).update(updatedData);
-      console.log(`Usuário com ID ${userId} atualizado com sucesso.`);
+      console.info(`Usuário com ID ${userId} atualizado com sucesso.`);
     } catch (error) {
-      console.error('Erro ao atualizar usuário:', error);
+      CustomError.logger(error, 'updateUser');
+      throw new CustomError(
+        'Erro ao atualizar usuário',
+        `Não foi possível atualizar o usuário com ID ${userId}.`,
+        { code: 500 }
+      );
     }
   }
 
   async addActivityToUser(userId, activity) {
-    const user = await this.getUser(userId);
-    if (!user) {
-      console.error('Usuário não encontrado.');
-      return null;
-    }
+    try {
+      const user = await this.getUser(userId);
+      if (!user) {
+        throw new CustomError(
+          'Usuário não encontrado',
+          `Usuário com ID ${userId} não foi encontrado.`,
+          { code: 404 }
+        );
+      }
 
-    if (user.activityHistory.some(thisActivity => thisActivity.id === activity.id)) {
-      console.error('Usuário já fez essa atividade.');
-      return null;
-    }
+      if (user.activityHistory.some(thisActivity => thisActivity.id === activity.id)) {
+        throw new CustomError(
+          'Atividade duplicada',
+          `O usuário ${userId} já completou a atividade com ID ${activity.id}.`,
+          { code: 409 }
+        );
+      }
 
-    const updatedActivity = {
-      id: activity.id,
-      title: activity.title,
-      type: activity.type,
-      dateCompleted: new Date()
-    };
+      const updatedActivity = {
+        id: activity.id,
+        title: activity.title,
+        type: activity.type,
+        dateCompleted: new Date(),
+      };
 
-    const updatedActivities = [...user.activityHistory, updatedActivity];
+      const updatedActivities = [...user.activityHistory, updatedActivity];
+      const updatedExperience = await calculateUserExperience(updatedActivities);
+      const level = await determineUserLevel(updatedExperience);
+      const role = ROLES[level - 1] || ROLES[ROLES.length - 1];
 
-    const updatedExperience = await calculateUserExperience(updatedActivities);
-    const level = await determineUserLevel(updatedExperience);
-    const role = ROLES[level - 1] || ROLES[ROLES.length - 1];
+      const activityService = new ActivityService();
+      const allActivities = (await activityService.listActivities()).sort((a, b) => a.createdAt - b.createdAt);
 
-    const activityService = new ActivityService();
-    const allActivities = (await activityService.listActivities()).sort((a, b) => {
-      return a.createdAt - b.createdAt;
-    });
+      let newStreak = user.streak || 0;
+      let maxStreak = user.maxStreak || 0;
 
-    let newStreak = user.streak || 0;
-    let maxStreak = user.maxStreak || 0;
+      if (user.activityHistory.length > 0) {
+        const lastCompletedActivityId = user.activityHistory[user.activityHistory.length - 1].id;
+        const lastCompletedIndex = allActivities.findIndex(act => act.id === lastCompletedActivityId);
+        const currentActivityIndex = allActivities.findIndex(act => act.id === activity.id);
 
-    if (user.activityHistory.length > 0) {
-      const lastCompletedActivityId = user.activityHistory[user.activityHistory.length - 1].id;
-      const lastCompletedIndex = allActivities.findIndex(act => act.id === lastCompletedActivityId);
-      const currentActivityIndex = allActivities.findIndex(act => act.id === activity.id);
-
-      if (currentActivityIndex === lastCompletedIndex + 1) {
-        newStreak += 1;
+        newStreak = currentActivityIndex === lastCompletedIndex + 1 ? newStreak + 1 : 1;
       } else {
         newStreak = 1;
       }
-    } else {
-      newStreak = 1;
+
+      maxStreak = Math.max(newStreak, maxStreak);
+
+      await this.collection.doc(userId).update({
+        activityHistory: FieldValue.arrayUnion(updatedActivity),
+        xp: updatedExperience,
+        level,
+        role: role.name,
+        streak: newStreak,
+        maxStreak,
+        lastActivity: FieldValue.serverTimestamp(),
+      });
+
+      await database.collection('atividades').doc(activity.id).update({
+        completedBy: FieldValue.arrayUnion(userId),
+      });
+
+      console.info(
+        `Atividade ${activity.id} vinculada ao usuário ${userId}. XP: ${updatedExperience}, Nível: ${level}, Cargo: ${role.name}, Streak Atual: ${newStreak}, MaxStreak: ${maxStreak}`
+      );
+
+      return { xp: updatedExperience, level, role };
+    } catch (error) {
+      throw new CustomError(
+        'Erro ao adicionar atividade',
+        `Não foi possível adicionar a atividade ao usuário ${userId}.`,
+        { code: 500 }
+      );
     }
-
-    maxStreak = Math.max(newStreak, maxStreak);
-
-    await this.collection.doc(userId).update({
-      activityHistory: FieldValue.arrayUnion(updatedActivity),
-      xp: updatedExperience,
-      level,
-      role: role.name,
-      streak: newStreak,
-      maxStreak,
-      lastActivity: FieldValue.serverTimestamp(),
-    });
-
-    await database.collection('atividades').doc(activity.id).update({
-      completedBy: FieldValue.arrayUnion(userId),
-    });
-
-    console.log(`Atividade vinculada ao usuário ${userId}. XP: ${updatedExperience}, Nível: ${level}, Cargo: ${role.name}, Streak Atual: ${newStreak}, MaxStreak: ${maxStreak}`);
-
-    return { xp: updatedExperience, level, role };
   }
 }

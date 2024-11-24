@@ -4,6 +4,7 @@ import UserService from '../database/services/userService.js';
 import { createEmbed, getRandomAdventureImage } from '../utils/messageUtils.js';
 import { EMBED_COLORS } from '../utils/constants.js';
 import { collectSequentialResponses } from '../utils/interactionHandlers.js';
+import CustomError from '../exceptions/customError.js';
 
 export default {
   once: false,
@@ -20,6 +21,7 @@ export default {
     if (!activityId || !userId) {
       await message.reply({
         content: 'Erro ao recuperar informações da atividade ou do usuário.',
+        ephemeral: true,
       });
       return;
     }
@@ -69,8 +71,14 @@ export default {
             const role = reaction.message.guild.roles.cache.get(updatedData.role.id);
             if (role) {
               const member = reaction.message.guild.members.cache.get(userId);
-              await member.roles.add(role);
+              if (!member) {
+                return await message.reply({
+                  content: 'Usuário não encontrado no servidor.',
+                  ephemeral: true,
+                });
+              }
 
+              await member.roles.add(role);
               await completedChannel.send({
                 embeds: [
                   createEmbed({
@@ -103,14 +111,13 @@ export default {
           }
 
           await activityService.rejectSubmission(activityId, userId);
-
           await completedChannel.send({
             content: `<@${userId}>`,
             embeds: [
               createEmbed({
                 title: 'Atividade rejeitada',
                 description: `A submissão de ${user.tag} para a atividade "${activity.title}" foi **rejeitada**.\n\n**Motivo:** ${data.reason}`,
-                color: EMBED_COLORS.RED
+                color: EMBED_COLORS.RED,
               }),
             ],
           });
@@ -120,10 +127,7 @@ export default {
 
       await reaction.users.remove(user.id);
     } catch (error) {
-      console.error('Erro ao aprovar/rejeitar atividade:', error);
-      await message.reply({
-        content: 'Erro ao aprovar/rejeitar a atividade.',
-      });
+      CustomError.logToChannel(error, message.channel);
     } finally {
       await message.delete();
     }

@@ -8,7 +8,7 @@
   },
   "type": "module",
   "keywords": [],
-  "author": "Marcos Grégory",
+  "author": "Marcos Grégory, Isis Nascimento, Everton Sousa",
   "license": "ISC",
   "description": "Um bot para monitoria do laboratório de programação",
   "dependencies": {

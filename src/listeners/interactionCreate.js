@@ -1,6 +1,7 @@
 import { Collection, Events, PermissionsBitField } from 'discord.js';
 import { createEmbed } from '../utils/messageUtils.js';
 import { EMBED_COLORS } from '../utils/constants.js';
+import CustomError from '../exceptions/customError.js';
 
 export default {
   once: false,
@@ -69,19 +70,13 @@ export default {
       await interaction.deferReply({ ephemeral: true });
       await command.execute(interaction);
     } catch (error) {
-      const isExpectedError = error.name === 'ExpectedError';
-      const response = {
-        embeds: [
-          createEmbed({
-            title: isExpectedError ? 'Aviso' : 'Erro',
-            description: isExpectedError
-              ? error.message
-              : 'Ocorreu um erro inesperado ao executar este comando. Entre em contato com o suporte.',
-            color: isExpectedError ? EMBED_COLORS.YELLOW : EMBED_COLORS.RED,
-          }),
-        ],
-        ephemeral: true,
-      };
+      CustomError.logger(error);
+
+      const response = createEmbed({
+        title: 'Erro',
+        description: `Ocorreu um erro ao executar o comando: ${error.message}`,
+        color: EMBED_COLORS.RED,
+      });
 
       if (interaction.replied || interaction.deferred) {
         await interaction.followUp(response);

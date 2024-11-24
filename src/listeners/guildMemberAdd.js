@@ -3,6 +3,7 @@ import { collectSequentialReactions, collectSequentialResponses, sendDM } from '
 import { createEmbed, deleteMessage } from '../utils/messageUtils.js';
 import { EMBED_COLORS } from '../utils/constants.js';
 import UserService from '../database/services/userService.js';
+import CustomError from '../exceptions/customError.js';
 
 const QUESTIONS = {
   REACTIONS: [
@@ -33,32 +34,25 @@ export default {
     if (!member) return;
 
     const welcomeChannel = member.guild.channels.cache.get('1298472460156403752');
-    if (!welcomeChannel) return;
+    if (!welcomeChannel) {
+      console.log('Canal de boas-vindas não encontrado!');
+      return;
+    }
 
     try {
       const dmChannel = await sendDM(member, welcomeChannel, {
         embeds: [
           createEmbed({
             title: `Boas-vindas ao servidor ${member.guild.name}!`,
-            description: `Olá! Seja bem-vindo ao ! Para começar, por favor, responda algumas perguntas!`,
+            description: `Olá! Seja bem-vindo ao servidor! Para começar, por favor, responda algumas perguntas!`,
             color: EMBED_COLORS.BLUE,
-            author: member.guild
+            author: member.guild,
           }),
         ],
       });
 
       if (!dmChannel) {
-        await welcomeChannel.send({
-          content: `${member}`,
-          embeds: [
-            createEmbed({
-              title: 'Erro',
-              description: 'Não foi possível enviar a mensagem para você. Habilite suas mensagens privadas e relogue no servidor.',
-              color: EMBED_COLORS.RED,
-            }),
-          ],
-        }).then(deleteMessage);
-
+        console.log(`Não foi possível enviar mensagem privada para ${member.user.tag}!`);
         return;
       }
 
@@ -71,18 +65,38 @@ export default {
             color: EMBED_COLORS.YELLOW,
           }),
         ],
-      }).then(message => deleteMessage(message, 15000));
+      }).then((message) => deleteMessage(message, 30000));
+
+      const notResponseMessage = createEmbed({
+        title: 'Perguntas não respondidas',
+        description: 'Você não respondeu às perguntas. Por favor, tente novamente.',
+        color: EMBED_COLORS.RED,
+      });
 
       const reactionAnswers = await collectSequentialReactions(member, dmChannel, QUESTIONS.REACTIONS);
-      if (!reactionAnswers) return;
+      if (!reactionAnswers) {
+        dmChannel.send({
+          content: `${member}`,
+          embeds: [notResponseMessage],
+        });
+        return;
+      }
 
       const responseAnswers = await collectSequentialResponses(member, dmChannel, QUESTIONS.RESPONSES);
-      if (!responseAnswers) return;
+      if (!responseAnswers) {
+        dmChannel.send({
+          content: `${member}`,
+          embeds: [notResponseMessage],
+        });
+        return;
+      }
+
+      const character = reactionAnswers.character === '👨' ? 'Finn' : 'Jake';
 
       const userService = new UserService();
       await userService.addUser(member.id, {
         enrollment: responseAnswers.enrollment,
-        character: reactionAnswers.character === '👨' ? 'Finn' : 'Jake',
+        character,
         xp: 0,
         level: 0,
         role: 'Aprendiz de Algoritmos',
@@ -93,18 +107,22 @@ export default {
         badges: [],
       });
 
-      const role = member.guild.roles.cache.find(role => role.id === (reactionAnswers.role === '💻' ? '1298472443362414694' : '1298472445560360960'));
-      await member.roles.add(role);
+      const role = member.guild.roles.cache.get(reactionAnswers.role === '💻' ? '1298472443362414694' : '1298472445560360960');
+      if (!role) {
+        console.log(`Cargo não encontrado para atribuir ao usuário ${member.user.tag} que entrou no servidor.`);
+        return;
+      }
 
+      await member.roles.add(role);
       await dmChannel.send({
         content: `${member}`,
         embeds: [
           createEmbed({
             title: 'Perfil criado com sucesso',
             author: member.user,
-            description: `Nome: ${member.user.username}\nMatrícula: ${responseAnswers.enrollment}\nPersonagem: ${reactionAnswers.character === '👨' ? 'Finn' : 'Jake'}\nCurso: ${reactionAnswers.role === '💻' ? 'Ciência da Computação' : 'Engenharia de Software'}`,
+            description: `Nome: ${member.user.username}\nMatrícula: ${responseAnswers.enrollment}\nPersonagem: ${character}\nCurso: ${role.name}`,
             footer: {
-              content: 'Seu perfil foi criado com sucesso. Tenha um excelente aprendizado na disciplina.',
+              text: 'Seu perfil foi criado com sucesso. Tenha um excelente aprendizado na disciplina.',
               iconURL: member.guild.iconURL({ dynamic: true }),
             },
             color: EMBED_COLORS.GREEN,
@@ -114,7 +132,7 @@ export default {
 
       await member.setNickname(`${reactionAnswers.character} ${member.user.username}`);
     } catch (error) {
-      console.error('Erro ao adicionar usuário:', error);
+      CustomError.logger(error, 'guildMemberAdd');
     }
   },
 };
