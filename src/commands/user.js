@@ -1,10 +1,10 @@
 import { SlashCommandBuilder, AttachmentBuilder } from "discord.js";
 import { createCanvas, loadImage } from "canvas";
 import { fileURLToPath } from "url";
+import { ROLES } from "../levelling/level.js";
 import path from "path";
 import UserService from "../database/services/userService.js";
-import { ROLES } from "../levelling/level.js";
-import CustomError from "../exceptions/customError.js";
+import Command from "./interface/command.js";
 
 const JAKE_REGIONS = [
   { xMin: 110, yMin: 140, xMax: 182, yMax: 260 },
@@ -108,7 +108,7 @@ async function generateImageWithStars(character, starCount = 1, final = false) {
   return canvas.toBuffer("image/png");
 }
 
-export default {
+export default new Command({
   cooldown: 5,
   data: new SlashCommandBuilder()
     .setName("usuario")
@@ -123,33 +123,26 @@ export default {
   async execute(interaction) {
     const action = interaction.options.getString("action");
 
-    try {
-      switch (action) {
-        case "avatar":
-          const userService = new UserService();
-          const user = await userService.getUser(interaction.user.id);
+    switch (action) {
+      case "avatar":
+        const userService = new UserService();
+        const user = await userService.getUser(interaction.user.id);
 
-          const imageBuffer = await generateImageWithStars(
-            user.character,
-            user.activityHistory.length,
-            user.level === ROLES.length,
-          );
+        const imageBuffer = await generateImageWithStars(
+          user.character,
+          user.activityHistory.length,
+          user.level === ROLES.length,
+        );
 
-          const attachment = new AttachmentBuilder(imageBuffer, {
-            name: "avatar.png",
-          });
+        const attachment = new AttachmentBuilder(imageBuffer, {
+          name: "avatar.png",
+        });
 
-          await interaction.editReply({
-            files: [attachment],
-            ephemeral: true,
-          });
-          break;
-      }
-    } catch (error) {
-      await interaction.editReply({
-        embeds: [CustomError.getFormattedMessage(error)],
-        ephemeral: true,
-      });
+        await interaction.editReply({
+          files: [attachment],
+          ephemeral: true,
+        });
+        break;
     }
   },
-};
+});

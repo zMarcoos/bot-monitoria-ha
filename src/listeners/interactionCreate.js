@@ -3,20 +3,20 @@ import { createEmbed } from '../utils/messageUtils.js';
 import { EMBED_COLORS } from '../utils/constants.js';
 import CustomError from '../exceptions/customError.js';
 
+const COMMAND_CHANNEL_ID = '1304910568188284979';
+
 export default {
   once: false,
   event: Events.InteractionCreate,
   async execute(interaction) {
     if (!interaction.isChatInputCommand()) return;
 
-    const commandChannelId = '1304910568188284979';
-
     if (
-      interaction.channel.id !== commandChannelId &&
+      interaction.channel.id !== COMMAND_CHANNEL_ID &&
       !interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)
     ) {
       return interaction.reply({
-        content: `Por favor, use os comandos no canal <#${commandChannelId}>.`,
+        content: `Por favor, use os comandos no canal <#${COMMAND_CHANNEL_ID}>.`,
         ephemeral: true,
       });
     }
@@ -70,18 +70,16 @@ export default {
       await interaction.deferReply({ ephemeral: true });
       await command.execute(interaction);
     } catch (error) {
-      CustomError.logger(error);
-
-      const response = createEmbed({
-        title: 'Erro',
-        description: `Ocorreu um erro ao executar o comando: ${error.message}`,
-        color: EMBED_COLORS.RED,
-      });
-
       if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(response);
+        await interaction.followUp({
+          embeds: [CustomError.getFormattedMessage(error)],
+          ephemeral: true,
+        });
       } else {
-        await interaction.reply(response);
+        await interaction.editReply({
+          embeds: [CustomError.getFormattedMessage(error)],
+          ephemeral: true,
+        });
       }
     }
   },

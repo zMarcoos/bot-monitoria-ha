@@ -1,8 +1,7 @@
 import { ReactionCollector, MessageCollector, ButtonStyle } from 'discord.js';
 import { createEmbed, deleteMessage } from './messageUtils.js';
 import CustomError from '../exceptions/customError.js';
-
-const TIME_LIMIT = 300_000;
+import { EXPIRATION_TIME_LIMIT } from './constants.js';
 
 async function createCollector({ channel, CollectorClass, filter, time, onCollect, onEnd }) {
   return new Promise((resolve, reject) => {
@@ -54,7 +53,7 @@ export async function collectSequentialReactions(member, channel, questions) {
         channel: questionMessage,
         CollectorClass: ReactionCollector,
         filter: (reaction, user) => emojis.includes(reaction.emoji.name) && user.id === member.id,
-        time: TIME_LIMIT,
+        time: EXPIRATION_TIME_LIMIT,
         onCollect: (reaction, resolve, collector) => {
           resolve(reaction.emoji.name);
           collector.stop('collected');
@@ -109,7 +108,7 @@ export async function collectSequentialResponses(member, channel, questions) {
         channel,
         CollectorClass: MessageCollector,
         filter: (message) => message.author.id === member.id,
-        time: TIME_LIMIT,
+        time: EXPIRATION_TIME_LIMIT,
         onCollect: async (message, resolve, collector) => {
           if (validate && !validate(message.content)) {
             const errorMessage = await channel.send({
@@ -175,7 +174,7 @@ export async function createPaginationCollector({
   totalItems,
   itemsPerPage,
   generateEmbed,
-  time = TIME_LIMIT,
+  time = EXPIRATION_TIME_LIMIT,
 }) {
   let currentPage = 0;
   const totalPages = Math.ceil(totalItems / itemsPerPage);

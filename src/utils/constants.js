@@ -1,3 +1,5 @@
+export const EXPIRATION_TIME_LIMIT = 300_000;
+
 export const EMBED_COLORS = {
   DEFAULT: '#2F3136',
   WHITE: '#FFFFFF',
