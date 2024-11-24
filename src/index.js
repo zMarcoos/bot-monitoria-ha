@@ -1,11 +1,12 @@
 import { Client, Collection, GatewayIntentBits, Partials } from 'discord.js';
+import { config } from 'dotenv';
+config();
+
 import { loadCommands, loadListeners, loadSlashCommands } from './handler.js';
 import { calculateLevelXPDistribution } from './levelling/level.js';
 import { initScheduler } from './scheduler/scheduler.js';
-import { config } from 'dotenv';
 import CustomError from './exceptions/customError.js';
 
-config();
 
 const client = new Client({
   intents: [

@@ -20,6 +20,7 @@
     "firebase-admin": "^12.7.0",
     "joi": "^17.13.3",
     "node-cron": "^3.0.3",
-    "nodemon": "^3.1.7"
+    "nodemon": "^3.1.7",
+    "twilio": "^5.3.6"
   }
 }

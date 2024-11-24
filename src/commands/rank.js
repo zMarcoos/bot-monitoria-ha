@@ -5,6 +5,7 @@ import { createPaginationCollector } from '../utils/interactionHandlers.js';
 import { createEmbed } from '../utils/messageUtils.js';
 import Command from './interface/command.js';
 import UserService from '../database/services/userService.js';
+import CustomError from '../exceptions/customError.js';
 
 const userService = new UserService();
 const USERS_PER_PAGE = 10;
