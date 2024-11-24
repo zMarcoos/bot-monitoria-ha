@@ -131,7 +131,7 @@ export default new Command({
         const imageBuffer = await generateImageWithStars(
           user.character,
           user.activityHistory.length,
-          user.level === ROLES.length,
+          user.level === ROLES.length - 1,
         );
 
         const attachment = new AttachmentBuilder(imageBuffer, {

@@ -5,6 +5,16 @@ import { EmbedBuilder } from 'discord.js';
 import { EMBED_COLORS } from '../utils/constants.js';
 import CustomError from '../exceptions/customError.js';
 
+export async function isMessageDeleted(message) {
+  try {
+    await message.channel.messages.fetch(message.id);
+    return false;
+  } catch (error) {
+    CustomError.logger(error, 'isMessageDeleted');
+    return true;
+  }
+}
+
 export async function deleteMessage(message, time = 5000) {
   if (!message || typeof message.delete !== 'function') return;
 

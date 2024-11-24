@@ -9,6 +9,12 @@ async function createCollector({ channel, CollectorClass, filter, time, onCollec
       const collector = new CollectorClass(channel, { filter, time });
 
       collector.on('collect', (item) => {
+        if (!item || (item.message && item.message.deleted)) {
+          console.warn('Item coletado está inválido ou mensagem foi deletada.');
+          collector.stop('message_deleted');
+          return;
+        }
+
         onCollect(item, resolve, collector);
       });
 
@@ -35,6 +41,14 @@ export async function collectSequentialReactions(member, channel, questions) {
 
   for (const { key, question, emojis } of questions) {
     try {
+      if (!channel || !channel.isTextBased()) {
+        throw new CustomError(
+          'Canal inválido',
+          'O canal fornecido não é válido ou não suporta mensagens.',
+          { code: 400 }
+        );
+      }
+
       const questionMessage = await channel.send({
         embeds: [
           createEmbed({
@@ -45,7 +59,7 @@ export async function collectSequentialReactions(member, channel, questions) {
         ],
       });
 
-      if (!questionMessage) {
+      if (!questionMessage || questionMessage.deleted) {
         throw new CustomError(
           'Erro ao enviar mensagem',
           `Não foi possível enviar a mensagem para a pergunta: "${question}".`,
@@ -53,10 +67,7 @@ export async function collectSequentialReactions(member, channel, questions) {
         );
       }
 
-      for (const emoji of emojis) {
-        if (!questionMessage) break;
-        await questionMessage.react(emoji);
-      }
+      await Promise.all(emojis.map((emoji) => questionMessage.react(emoji)));
 
       const response = await createCollector({
         channel: questionMessage,
@@ -64,19 +75,40 @@ export async function collectSequentialReactions(member, channel, questions) {
         filter: (reaction, user) => emojis.includes(reaction.emoji.name) && user.id === member.id,
         time: EXPIRATION_TIME_LIMIT,
         onCollect: (reaction, resolve, collector) => {
+          if (!reaction || reaction.message.deleted) {
+            console.warn('Reação inválida ou mensagem foi deletada.');
+            collector.stop('message_deleted');
+            return;
+          }
+
           resolve(reaction.emoji.name);
           collector.stop('collected');
         },
         onEnd: async () => {
-          await channel.send({
-            embeds: [
-              createEmbed({
-                title: 'Erro',
-                description: 'Não foi possível coletar suas respostas. Por favor, tente novamente.',
-                color: 'ff5555',
-              }),
-            ],
-          }).then(deleteMessage);
+          if (!questionMessage || questionMessage.deleted) {
+            console.warn('Mensagem não encontrada ou foi deletada.');
+            return;
+          }
+
+          if (!channel || !channel.isTextBased()) {
+            throw new CustomError(
+              'Canal inválido',
+              'O canal fornecido não é válido ou não suporta mensagens.',
+              { code: 400 }
+            );
+          }
+
+          await deleteMessage(
+            await channel.send({
+              embeds: [
+                createEmbed({
+                  title: 'Erro',
+                  description: 'Não foi possível coletar suas respostas. Por favor, tente novamente.',
+                  color: 'ff5555',
+                }),
+              ],
+            })
+          );
         },
       });
 
@@ -99,6 +131,14 @@ export async function collectSequentialResponses(member, channel, questions) {
 
   for (const { key, question, validate, deletable = false } of questions) {
     try {
+      if (!channel || !channel.isTextBased()) {
+        throw new CustomError(
+          'Canal inválido',
+          'O canal fornecido não é válido ou não suporta mensagens.',
+          { code: 400 }
+        );
+      }
+
       const questionMessage = await channel.send({
         embeds: [
           createEmbed({
@@ -127,7 +167,21 @@ export async function collectSequentialResponses(member, channel, questions) {
         filter: (message) => message.author.id === member.id,
         time: EXPIRATION_TIME_LIMIT,
         onCollect: async (message, resolve, collector) => {
+          if (!message || message.deleted) {
+            console.warn('Mensagem coletada foi deletada.');
+            collector.stop('message_deleted');
+            return;
+          }
+
           if (validate && !validate(message.content)) {
+            if (!channel || !channel.isTextBased()) {
+              throw new CustomError(
+                'Canal inválido',
+                'O canal fornecido não é válido ou não suporta mensagens.',
+                { code: 400 }
+              );
+            }
+
             const errorMessage = await channel.send({
               embeds: [
                 createEmbed({
@@ -152,6 +206,19 @@ export async function collectSequentialResponses(member, channel, questions) {
           }
         },
         onEnd: async () => {
+          if (!questionMessage || questionMessage.deleted) {
+            console.warn('Mensagem foi deletada antes de encerrar o coletor.');
+            return;
+          }
+
+          if (!channel || !channel.isTextBased()) {
+            throw new CustomError(
+              'Canal inválido',
+              'O canal fornecido não é válido ou não suporta mensagens.',
+              { code: 400 }
+            );
+          }
+
           const timeoutMessage = await channel.send({
             embeds: [
               createEmbed({
@@ -169,6 +236,13 @@ export async function collectSequentialResponses(member, channel, questions) {
       });
 
       answers[key] = response || 'Sem resposta';
+
+      await Promise.all(
+        messagesToDelete
+          .filter((message) => message.deletable)
+          .map((message) => deleteMessage(message, 0))
+      );
+
     } catch (error) {
       throw new CustomError(
         'Erro ao coletar respostas',
@@ -176,11 +250,6 @@ export async function collectSequentialResponses(member, channel, questions) {
         { code: 400 }
       );
     }
-  }
-
-  for (const message of messagesToDelete) {
-    if (!message.deletable) continue;
-    deleteMessage(message, 0);
   }
 
   return answers;
@@ -277,18 +346,27 @@ export async function createPaginationCollector({
         disabled: true,
       }));
 
-      if (!message || !message.editable) return;
-      await message.edit({
-        components: [
-          {
-            type: 1,
-            components: disabledButtons.map((button) => ({
-              type: 2,
-              ...button,
-            })),
-          },
-        ],
-      });
+      //alterar o negócio de se a mensagem nn for fetch, então não dá pra editar
+      if (!message || !message.editable) {
+        console.warn('Mensagem não encontrada ou não pode ser editada.');
+        return;
+      }
+
+      try {
+        await message.edit({
+          components: [
+            {
+              type: 1,
+              components: disabledButtons.map((button) => ({
+                type: 2,
+                ...button,
+              })),
+            },
+          ],
+        });
+      } catch (error) {
+        console.error('Erro ao editar mensagem:', error);
+      }
     });
   } catch (error) {
     throw new CustomError(
@@ -311,16 +389,27 @@ export async function sendDM(member, channel, message, maxAttempts = 5, interval
     } catch (error) {
       if (attempts === 0) {
         try {
-          await channel.send({
-            content: `${member}`,
-            embeds: [
-              createEmbed({
-                title: 'Erro ao enviar mensagem privada',
-                description: `Não foi possível enviar a mensagem para ${member}. Tentando novamente em <t:${retryTime}:R>. Certifique-se de que suas mensagens privadas estão habilitadas.`,
-                color: 'ff5555',
-              }),
-            ],
-          }).then((msg) => deleteMessage(msg, maxAttempts * interval));
+          if (!channel || !channel.isTextBased()) {
+            throw new CustomError(
+              'Canal inválido',
+              'O canal fornecido não é válido ou não suporta mensagens.',
+              { code: 400 }
+            );
+          }
+
+          await deleteMessage(
+            await channel.send({
+              content: `${member}`,
+              embeds: [
+                createEmbed({
+                  title: 'Erro ao enviar mensagem privada',
+                  description: `Não foi possível enviar a mensagem para ${member}. Tentando novamente em <t:${retryTime}:R>. Certifique-se de que suas mensagens privadas estão habilitadas.`,
+                  color: 'ff5555',
+                }),
+              ],
+            }),
+            maxAttempts * interval
+          )
         } catch (sendError) {
           CustomError.logger(sendError, 'sendDM');
 
