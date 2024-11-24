@@ -284,8 +284,6 @@ export async function sendDM(member, channel, message, maxAttempts = 5, interval
       await dmChannel.send(message);
       return dmChannel;
     } catch (error) {
-      CustomError.logger(error, 'sendDM');
-
       if (attempts === 0) {
         try {
           await channel.send({

@@ -17,6 +17,11 @@ export default class UserService {
       'string.base': `"enrollment" deve ser um texto`,
       'any.required': `"enrollment" é um campo obrigatório`,
     }),
+    course: Joi.string().valid('Ciência da Computação', 'Engenharia de Software').required().messages({
+      'string.base': `"course" deve ser um texto`,
+      'any.only': `"course" deve ser "Ciência da Computação" ou "Engenharia de Software"`,
+      'any.required': `"course" é um campo obrigatório`,
+    }),
     xp: Joi.number().integer().min(0).default(0).messages({
       'number.base': `"xp" deve ser um número`,
       'number.min': `"xp" não pode ser negativo`,
@@ -59,7 +64,7 @@ export default class UserService {
 
     try {
       const user = (await this.collection.doc(userId).get()).data() || null;
-      userCache.set(userId, user);
+      if (user) userCache.set(userId, user);
 
       return user;
     } catch (error) {
@@ -82,7 +87,8 @@ export default class UserService {
     }
 
     try {
-      if (await this.getUser(userId)) {
+      const userDoc = await this.collection.doc(userId).get();
+      if (userDoc.exists) {
         throw new CustomError(
           'Usuário duplicado',
           `O usuário com ID ${userId} já existe no banco de dados.`,
@@ -91,6 +97,8 @@ export default class UserService {
       }
 
       await this.collection.doc(userId).set(userData);
+      userCache.set(userId, userData);
+
       console.info(`Usuário com ID ${userId} adicionado com sucesso.`);
     } catch (error) {
       throw new CustomError(
