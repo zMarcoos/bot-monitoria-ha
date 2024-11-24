@@ -252,25 +252,18 @@ export async function createPaginationCollector({
         disabled: true,
       }));
 
-      try {
-        await message.edit({
-          components: [
-            {
-              type: 1,
-              components: disabledButtons.map((button) => ({
-                type: 2,
-                ...button,
-              })),
-            },
-          ],
-        });
-      } catch (error) {
-        throw new CustomError(
-          'Erro ao desabilitar botões',
-          `Falha ao desativar os botões de navegação.`,
-          { code: 500 }
-        );
-      }
+      if (!message.editable) return;
+      await message.edit({
+        components: [
+          {
+            type: 1,
+            components: disabledButtons.map((button) => ({
+              type: 2,
+              ...button,
+            })),
+          },
+        ],
+      });
     });
   } catch (error) {
     throw new CustomError(

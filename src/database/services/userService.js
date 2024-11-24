@@ -5,6 +5,8 @@ import ActivityService from './activityService.js';
 import { ROLES, determineUserLevel, calculateUserExperience } from '../../levelling/level.js';
 import CustomError from '../../exceptions/customError.js';
 
+const userCache = new Map();
+
 export default class UserService {
   constructor(collectionName = 'usuarios') {
     this.collection = database.collection(collectionName);
@@ -51,8 +53,15 @@ export default class UserService {
   });
 
   async getUser(userId) {
+    if (userCache.has(userId)) {
+      return userCache.get(userId);
+    }
+
     try {
-      return (await this.collection.doc(userId).get()).data() || null;
+      const user = (await this.collection.doc(userId).get()).data() || null;
+      userCache.set(userId, user);
+
+      return user;
     } catch (error) {
       throw new CustomError(
         'Erro ao buscar usuário',

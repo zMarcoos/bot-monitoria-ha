@@ -1,6 +1,7 @@
 import database from '../firebase.js';
 import Joi from 'joi';
 import CustomError from '../../exceptions/customError.js';
+import { calculateLevelXPDistribution } from '../../levelling/level.js';
 
 export default class ActivityService {
   constructor(collectionName = 'atividades') {
@@ -108,6 +109,9 @@ export default class ActivityService {
       const activityId = await this.getNextActivityId();
       await this.collection.doc(activityId).set(value);
       console.info(`Atividade "${activityData.title}" adicionada com sucesso com o ID ${activityId}.`);
+
+      await calculateLevelXPDistribution(true);
+      console.info('Distribuição de XP recalculada após adição de atividade.');
     } catch (error) {
       throw new CustomError(
         'Erro ao adicionar atividade',
