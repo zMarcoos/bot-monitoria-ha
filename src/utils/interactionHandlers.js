@@ -45,7 +45,16 @@ export async function collectSequentialReactions(member, channel, questions) {
         ],
       });
 
+      if (!questionMessage) {
+        throw new CustomError(
+          'Erro ao enviar mensagem',
+          `Não foi possível enviar a mensagem para a pergunta: "${question}".`,
+          { code: 400 }
+        );
+      }
+
       for (const emoji of emojis) {
+        if (!questionMessage) break;
         await questionMessage.react(emoji);
       }
 
@@ -99,6 +108,14 @@ export async function collectSequentialResponses(member, channel, questions) {
           }),
         ],
       });
+
+      if (!questionMessage) {
+        throw new CustomError(
+          'Erro ao enviar mensagem',
+          `Não foi possível enviar a mensagem para a pergunta: "${question}".`,
+          { code: 400 }
+        );
+      }
 
       if (deletable) {
         messagesToDelete.push(questionMessage);
@@ -162,6 +179,7 @@ export async function collectSequentialResponses(member, channel, questions) {
   }
 
   for (const message of messagesToDelete) {
+    if (!message.deletable) continue;
     deleteMessage(message, 0);
   }
 
@@ -219,6 +237,13 @@ export async function createPaginationCollector({
     };
 
     const message = await sendInitialMessage();
+    if (!message || !message.editable) {
+      throw new CustomError(
+        'Erro na paginação',
+        'Não foi possível enviar a mensagem inicial da paginação.',
+        { code: 500 }
+      );
+    }
 
     const collector = message.createMessageComponentCollector({
       filter: (interaction) =>
@@ -252,7 +277,7 @@ export async function createPaginationCollector({
         disabled: true,
       }));
 
-      if (!message.editable) return;
+      if (!message || !message.editable) return;
       await message.edit({
         components: [
           {

@@ -5,17 +5,21 @@ import { createEmbed, getRandomAdventureImage } from '../utils/messageUtils.js';
 import { EMBED_COLORS } from '../utils/constants.js';
 import { collectSequentialResponses } from '../utils/interactionHandlers.js';
 import CustomError from '../exceptions/customError.js';
+import { getMember } from '../utils/userUtils.js';
+import { ROLES } from '../levelling/level.js';
+
+const SUBMISSION_CHANNEL_ID = '1309657893460512902';
 
 export default {
   once: false,
   event: Events.MessageReactionAdd,
   async execute(reaction, user) {
     if (user.bot) return;
-    if (reaction.message.channel.id !== '1309657893460512902') return;
+    if (reaction.message.channel.id !== SUBMISSION_CHANNEL_ID) return;
 
     const { message, emoji } = reaction;
 
-    const activityId = message.embeds[0]?.fields?.find(field => field.name === 'ID da atividade:')?.value;
+    const activityId = message.embeds[0]?.fields?.find((field) => field.name === 'ID da atividade:')?.value;
     const userId = message.embeds[0]?.footer?.text;
 
     if (!activityId || !userId) {
@@ -53,6 +57,23 @@ export default {
           await activityService.approveSubmission(activityId, userId);
 
           const userData = await userService.getUser(userId);
+          if (!userData) {
+            await message.reply({
+              content: 'Usuário não encontrado.',
+              ephemeral: true,
+            });
+            return;
+          }
+
+          const member = await getMember(userId);
+          if (!member) {
+            await message.reply({
+              content: 'Usuário não encontrado no servidor.',
+              ephemeral: true,
+            });
+            return;
+          }
+
           const previousLevel = userData.level;
           const updatedData = await userService.addActivityToUser(userId, activity);
 
@@ -60,7 +81,7 @@ export default {
             embeds: [
               createEmbed({
                 title: '✅ Atividade completada',
-                description: `🎉 A submissão de ${user.tag} para a atividade "${activity.title}" foi **aprovada**! 🎉`,
+                description: `🎉 A submissão de ${member} ${userData.enrollment} para a atividade "${activity.title}" foi **aprovada**! 🎉`,
                 color: EMBED_COLORS.GREEN,
                 image: getRandomAdventureImage().url,
               }),
@@ -68,22 +89,15 @@ export default {
           });
 
           if (previousLevel < updatedData.level) {
-            const role = reaction.message.guild.roles.cache.get(updatedData.role.id);
-            if (role) {
-              const member = reaction.message.guild.members.cache.get(userId);
-              if (!member) {
-                return await message.reply({
-                  content: 'Usuário não encontrado no servidor.',
-                  ephemeral: true,
-                });
-              }
+            const role = reaction.message.guild.roles.cache.get(ROLES[updatedData.level]?.id);
 
+            if (role) {
               await member.roles.add(role);
               await completedChannel.send({
                 embeds: [
                   createEmbed({
                     title: '🎉 Level up! 🎉',
-                    description: `🎉 ${user.tag} subiu para o nível ${updatedData.level}! 🎉`,
+                    description: `🎉 ${member} ${userData?.enrollment || ''} subiu para o nível ${updatedData.level} e foi promovido para **${ROLES[updatedData.level]?.name}**! 🎉`,
                     color: EMBED_COLORS.GREEN,
                     image: getRandomAdventureImage().url,
                   }),
@@ -96,11 +110,13 @@ export default {
         }
 
         case '❌': {
-          const data = await collectSequentialResponses(user, reaction.message.channel, [{
-            key: 'reason',
-            question: 'Qual o motivo da rejeição?',
-            deletable: true,
-          }]);
+          const data = await collectSequentialResponses(user, reaction.message.channel, [
+            {
+              key: 'reason',
+              question: 'Qual o motivo da rejeição?',
+              deletable: true,
+            },
+          ]);
 
           if (!data) {
             await message.reply({
@@ -127,7 +143,8 @@ export default {
 
       await reaction.users.remove(user.id);
     } catch (error) {
-      CustomError.logToChannel(error, message.channel);
+      console.error('Erro em MessageReactionAdd:', error);
+      CustomError.logToChannel(error, reaction.message.channel);
     } finally {
       await message.delete();
     }

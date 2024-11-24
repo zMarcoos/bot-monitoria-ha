@@ -29,7 +29,7 @@ async function initializeBot() {
     await loadCommands(client);
     await loadListeners(client);
     await loadSlashCommands(client);
-    await calculateLevelXPDistribution();
+    await calculateLevelXPDistribution(true);
 
     console.log("Bot inicializado com sucesso!");
 

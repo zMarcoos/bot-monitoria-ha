@@ -49,12 +49,12 @@ export default {
       const expirationTime = timestamps.get(interaction.user.id) + cooldownAmount;
 
       if (now < expirationTime) {
-        const timeLeft = Math.round((expirationTime - now) / 1000);
+        const timeLeft = Math.floor(expirationTime / 1000);
         return interaction.reply({
           embeds: [
             createEmbed({
               title: 'Cooldown',
-              description: `Aguarde mais **${timeLeft} segundos** antes de reutilizar o comando \`${command.data.name}\`.`,
+              description: `Aguarde mais <t:${timeLeft}:R> antes de reutilizar o comando \`${command.data.name}\`.`,
               color: EMBED_COLORS.YELLOW,
             }),
           ],

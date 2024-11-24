@@ -305,6 +305,7 @@ export default class ActivityService {
 
       await userRef.update({ activityHistory: userActivities });
       console.info(`Atividade ${activityId} vinculada ao usuário ${userId}.`);
+      console.log('Histórico de atividades atualizado:', userActivities);
     } catch (error) {
       throw new CustomError(
         'Erro ao vincular atividade ao usuário',

@@ -13,6 +13,7 @@ export const ROLES = [
   { name: 'Feiticeiro dos Dados', id: '1309353547237687337' },
   { name: 'Guardião dos Códigos', id: '1309353735578718239' },
   { name: 'Arcanista Digital', id: '1309354146494943232' },
+  { name: 'Feiticeiro Alado', id: '1310339027928616960' },
   { name: 'Mago Mestre do Código', id: '1309353865539223563' },
 ];
 
@@ -23,30 +24,37 @@ export async function calculateLevelXPDistribution(recalculate = false) {
 
   const activityService = new ActivityService();
   try {
-    const allActivities = await activityService.listActivities();
+    // Recupera todas as atividades
+    const allActivities = await activityService.listActivities() || [];
+    console.log('Atividades recuperadas:', allActivities);
 
-    if (!allActivities || allActivities.length === 0) {
-      throw new CustomError(
-        'Atividades não encontradas',
-        'Nenhuma atividade foi recuperada do banco de dados para calcular a distribuição de XP.',
-        { code: 404 }
-      );
-    }
-
+    // Calcula o total de XP com base no tipo das atividades
     const activityCounts = allActivities.reduce((accumulator, activity) => {
       accumulator[activity.type] = (accumulator[activity.type] || 0) + 1;
       return accumulator;
     }, {});
 
-    const totalXP = Object.entries(activityCounts).reduce((totalXP, [type, count]) => {
-      return totalXP + (XP_VALUES[type] * count || 0);
-    }, 0);
-
     const levels = ROLES.length;
-    const levelXP = Math.ceil(totalXP / levels);
 
-    levelXPDistributionCached = Array.from({ length: levels }, (_, index) => (index + 1) * levelXP);
+    const totalXP = Object.entries(activityCounts).reduce((total, [type, count]) => {
+      return total + (XP_VALUES[type] || 0) * count;
+    }, 0);
+    if (totalXP === 0) {
+      console.warn('Nenhuma atividade disponível para calcular XP.');
+      return Array.from({ length: levels }, () => 0);
+    }
 
+    console.log('XP total calculado:', totalXP);
+
+    const xpPerLevel = Math.ceil(totalXP / (levels - 1)); // Último nível é exatamente o XP total
+    const levelBoundaries = Array.from({ length: levels }, (_, index) => xpPerLevel * index);
+
+    // Ajusta o limite superior ao total de XP
+    levelBoundaries[levels - 1] = totalXP;
+
+    console.log('Faixas de XP por nível (calculadas automaticamente):', levelBoundaries);
+
+    levelXPDistributionCached = levelBoundaries;
     return levelXPDistributionCached;
   } catch (error) {
     throw new CustomError(
@@ -75,13 +83,26 @@ export async function determineUserLevel(userXP) {
   try {
     const levelXPDistribution = await calculateLevelXPDistribution();
 
-    for (let level = 0; level < levelXPDistribution.length; level++) {
-      if (userXP < levelXPDistribution[level]) {
+    console.log('Distribuição de XP atual:', levelXPDistribution);
+    console.log('XP do usuário:', userXP);
+
+    for (let level = 0; level < levelXPDistribution.length - 1; level++) {
+      if (userXP >= levelXPDistribution[level] && userXP < levelXPDistribution[level + 1]) {
+        console.log(`Nível determinado: ${level} para XP: ${userXP}`);
         return level;
       }
     }
-    return levelXPDistribution.length;
+
+    if (userXP === levelXPDistribution[levelXPDistribution.length - 1]) {
+      const maxLevel = levelXPDistribution.length - 1;
+      console.log(`Nível máximo alcançado: ${maxLevel}`);
+      return maxLevel;
+    }
+
+    console.warn('XP fora da faixa esperada:', userXP);
+    return 0;
   } catch (error) {
+    console.error('Erro em determineUserLevel:', error);
     throw new CustomError(
       'Erro ao determinar nível do usuário',
       'Ocorreu um erro ao tentar determinar o nível do usuário.',
@@ -98,7 +119,15 @@ export async function calculateLevelProgress(userXP) {
     const previousXP = currentLevel === 0 ? 0 : levelXPDistribution[currentLevel - 1];
     const currentLevelXP = levelXPDistribution[currentLevel] - previousXP;
 
-    return ((userXP - previousXP) / currentLevelXP) * 100;
+    console.log('Nível atual:', currentLevel);
+    console.log('XP anterior ao nível atual:', previousXP);
+    console.log('XP necessário para o próximo nível:', currentLevelXP);
+
+    const progress = currentLevelXP === 0 ? 100 : ((userXP - previousXP) / currentLevelXP) * 100;
+
+    console.log(`Progresso de nível: ${progress}%`);
+
+    return progress;
   } catch (error) {
     throw new CustomError(
       'Erro ao calcular progresso de nível',
@@ -121,13 +150,30 @@ export async function getUserProgressReport(userId) {
       );
     }
 
+    if (isNaN(user.xp) || user.xp < 0) {
+      throw new CustomError(
+        'Dados de usuário inválidos',
+        `O XP do usuário ${userId} é inválido: ${user.xp}.`,
+        { code: 400 }
+      );
+    }
+
     const progress = await calculateLevelProgress(user.xp);
-    const nextRole = ROLES[user.level] || ROLES[ROLES.length - 1];
+
+    const currentRole = ROLES[user.level] || ROLES[0];
+    const nextRole = ROLES[user.level + 1] || null;
+
+    console.log(`Relatório de progresso para o usuário ${userId}`);
+    console.log('XP Atual:', user.xp);
+    console.log('Nível Atual:', user.level);
+    console.log('Cargo Atual:', currentRole?.name);
+    console.log('Próximo Cargo:', nextRole?.name || 'Nenhum');
 
     return {
       currentXP: user.xp,
       currentLevel: user.level,
       progressPercentage: progress,
+      currentRole,
       nextRole,
     };
   } catch (error) {

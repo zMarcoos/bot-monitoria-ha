@@ -58,13 +58,14 @@ export default class UserService {
   });
 
   async getUser(userId) {
+    /*
     if (userCache.has(userId)) {
       return userCache.get(userId);
-    }
+    }*/
 
     try {
       const user = (await this.collection.doc(userId).get()).data() || null;
-      if (user) userCache.set(userId, user);
+      //if (user) userCache.set(userId, user);
 
       return user;
     } catch (error) {
@@ -97,7 +98,7 @@ export default class UserService {
       }
 
       await this.collection.doc(userId).set(userData);
-      userCache.set(userId, userData);
+      //userCache.set(userId, userData);
 
       console.info(`Usuário com ID ${userId} adicionado com sucesso.`);
     } catch (error) {
@@ -169,7 +170,7 @@ export default class UserService {
         );
       }
 
-      if (user.activityHistory.some(thisActivity => thisActivity.id === activity.id)) {
+      if (user.activityHistory.some((thisActivity) => thisActivity.id === activity.id)) {
         throw new CustomError(
           'Atividade duplicada',
           `O usuário ${userId} já completou a atividade com ID ${activity.id}.`,
@@ -183,22 +184,23 @@ export default class UserService {
         type: activity.type,
         dateCompleted: new Date(),
       };
-
       const updatedActivities = [...user.activityHistory, updatedActivity];
+
       const updatedExperience = await calculateUserExperience(updatedActivities);
-      const level = await determineUserLevel(updatedExperience);
-      const role = ROLES[level - 1] || ROLES[ROLES.length - 1];
+      const updatedLevel = await determineUserLevel(updatedExperience);
 
-      const activityService = new ActivityService();
-      const allActivities = (await activityService.listActivities()).sort((a, b) => a.createdAt - b.createdAt);
+      const role = ROLES[updatedLevel] || ROLES[ROLES.length - 1];
 
+      const allActivities = (await new ActivityService().listActivities()).sort(
+        (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+      );
       let newStreak = user.streak || 0;
       let maxStreak = user.maxStreak || 0;
 
       if (user.activityHistory.length > 0) {
         const lastCompletedActivityId = user.activityHistory[user.activityHistory.length - 1].id;
-        const lastCompletedIndex = allActivities.findIndex(act => act.id === lastCompletedActivityId);
-        const currentActivityIndex = allActivities.findIndex(act => act.id === activity.id);
+        const lastCompletedIndex = allActivities.findIndex((act) => act.id === lastCompletedActivityId);
+        const currentActivityIndex = allActivities.findIndex((act) => act.id === activity.id);
 
         newStreak = currentActivityIndex === lastCompletedIndex + 1 ? newStreak + 1 : 1;
       } else {
@@ -210,7 +212,7 @@ export default class UserService {
       await this.collection.doc(userId).update({
         activityHistory: FieldValue.arrayUnion(updatedActivity),
         xp: updatedExperience,
-        level,
+        level: updatedLevel,
         role: role.name,
         streak: newStreak,
         maxStreak,
@@ -222,10 +224,10 @@ export default class UserService {
       });
 
       console.info(
-        `Atividade ${activity.id} vinculada ao usuário ${userId}. XP: ${updatedExperience}, Nível: ${level}, Cargo: ${role.name}, Streak Atual: ${newStreak}, MaxStreak: ${maxStreak}`
+        `Atividade ${activity.id} vinculada ao usuário ${userId}. XP: ${updatedExperience}, Nível: ${updatedLevel}, Cargo: ${role.name}, Streak Atual: ${newStreak}, MaxStreak: ${maxStreak}`
       );
 
-      return { xp: updatedExperience, level, role };
+      return { xp: updatedExperience, level: updatedLevel, role };
     } catch (error) {
       throw new CustomError(
         'Erro ao adicionar atividade',
