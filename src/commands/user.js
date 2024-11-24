@@ -122,64 +122,47 @@ export default {
         .addChoices({ name: "Avatar", value: "avatar" }),
     ),
   async execute(interaction) {
-    await interaction.deferReply(); // Garante que a interação não expire
+    const action = interaction.options.getString("action");
 
-    try {
-      const action = interaction.options.getString("action");
+    if (action === "avatar") {
+      const userService = new UserService();
+      const user = await userService.getUser(interaction.user.id);
 
-      if (action === "avatar") {
-        const userService = new UserService();
-        const user = await userService.getUser(interaction.user.id);
-
-        if (!user) {
-          await interaction.editReply({
-            content: "Você não está registrado no sistema.",
-            embeds: [
-              createEmbed({
-                title: "Registro",
-                description:
-                  "Você não está registrado. Entre novamente no servidor!",
-                color: EMBED_COLORS.RED,
-              }),
-            ],
-          });
-          return;
-        }
-
-        const imageBuffer = await generateImageWithStars(
-          user.character,
-          user.activityHistory.length,
-          user.level === ROLES.length,
-        );
-
-        const attachment = new AttachmentBuilder(imageBuffer, {
-          name: "avatar.png",
-        });
-
-        await interaction.editReply({ files: [attachment] });
-      } else {
+      if (!user) {
         await interaction.editReply({
+          content: "Você não está registrado no sistema.",
           embeds: [
             createEmbed({
-              title: "Usuário",
-              description: "Ação não encontrada.",
+              title: "Registro",
+              description:
+                "Você não está registrado. Entre novamente no servidor!",
               color: EMBED_COLORS.RED,
             }),
           ],
         });
+        return;
       }
-    } catch (error) {
-      console.error("Erro ao executar o comando 'usuario':", error);
 
-      await interaction.followUp({
+      const imageBuffer = await generateImageWithStars(
+        user.character,
+        user.activityHistory.length,
+        user.level === ROLES.length,
+      );
+
+      const attachment = new AttachmentBuilder(imageBuffer, {
+        name: "avatar.png",
+      });
+
+      await interaction.editReply({ files: [attachment] });
+    } else {
+      await interaction.editReply({
         embeds: [
           createEmbed({
-            title: "Erro",
-            description: "Ocorreu um erro ao executar este comando.",
+            title: "Usuário",
+            description: "Ação não encontrada.",
             color: EMBED_COLORS.RED,
           }),
         ],
-        ephemeral: true,
       });
     }
   },

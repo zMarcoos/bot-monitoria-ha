@@ -8,17 +8,33 @@ export default {
   async execute(interaction) {
     if (!interaction.isChatInputCommand()) return;
 
-    if (interaction.channel.id !== '1304910568188284979' && !interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+    const commandChannelId = '1304910568188284979';
+
+    if (
+      interaction.channel.id !== commandChannelId &&
+      !interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)
+    ) {
       return interaction.reply({
-        content: `Por favor, use os comandos no canal <#1304910568188284979>.`,
-        ephemeral: true
+        content: `Por favor, use os comandos no canal <#${commandChannelId}>.`,
+        ephemeral: true,
       });
     }
 
     const { commands, cooldowns } = interaction.client;
 
     const command = commands.get(interaction.commandName);
-    if (!command) return;
+    if (!command) {
+      return interaction.reply({
+        embeds: [
+          createEmbed({
+            title: 'Erro',
+            description: 'Comando não encontrado. Certifique-se de usar um comando válido.',
+            color: EMBED_COLORS.RED,
+          }),
+        ],
+        ephemeral: true,
+      });
+    }
 
     if (!cooldowns.has(command.data.name)) {
       cooldowns.set(command.data.name, new Collection());
@@ -32,17 +48,16 @@ export default {
       const expirationTime = timestamps.get(interaction.user.id) + cooldownAmount;
 
       if (now < expirationTime) {
-        const timeLeft = Math.round(expirationTime / 1000);
+        const timeLeft = Math.round((expirationTime - now) / 1000);
         return interaction.reply({
-          content: `Você está indo rápido demais, ${interaction.user}!`,
           embeds: [
             createEmbed({
               title: 'Cooldown',
-              description: `Por favor, espere <t:${timeLeft}:R> antes de reutilizar o comando \`${command.data.name}\`.`,
-              color: EMBED_COLORS.RED
-            })
+              description: `Aguarde mais **${timeLeft} segundos** antes de reutilizar o comando \`${command.data.name}\`.`,
+              color: EMBED_COLORS.YELLOW,
+            }),
           ],
-          ephemeral: true
+          ephemeral: true,
         });
       }
     }
@@ -51,27 +66,28 @@ export default {
     setTimeout(() => timestamps.delete(interaction.user.id), cooldownAmount);
 
     try {
+      await interaction.deferReply({ ephemeral: true });
       await command.execute(interaction);
     } catch (error) {
-      console.error(error);
-
+      const isExpectedError = error.name === 'ExpectedError';
       const response = {
-        content: `${interaction.user}`,
         embeds: [
           createEmbed({
-            title: 'Erro',
-            description: 'Ocorreu um erro ao executar este comando. Fale com um desenvolvedor.',
-            color: EMBED_COLORS.RED
-          })
+            title: isExpectedError ? 'Aviso' : 'Erro',
+            description: isExpectedError
+              ? error.message
+              : 'Ocorreu um erro inesperado ao executar este comando. Entre em contato com o suporte.',
+            color: isExpectedError ? EMBED_COLORS.YELLOW : EMBED_COLORS.RED,
+          }),
         ],
-        ephemeral: true
-      }
+        ephemeral: true,
+      };
 
       if (interaction.replied || interaction.deferred) {
-			  await interaction.followUp(response);
-		  } else {
-			  await interaction.reply(response);
-		  }
+        await interaction.followUp(response);
+      } else {
+        await interaction.reply(response);
+      }
     }
   },
-}
+};
