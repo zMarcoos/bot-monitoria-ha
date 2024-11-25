@@ -31,10 +31,8 @@ async function initializeBot() {
     await loadSlashCommands(client);
     await calculateLevelXPDistribution(true);
 
-    console.log("Bot inicializado com sucesso!");
-
     await client.login(process.env.DISCORD_TOKEN);
-    console.log("Bot logado com sucesso!");
+    console.log("Bot inicializado com sucesso!");
   } catch (error) {
     CustomError.logger(error, 'initializeBot');
     process.exit(1);

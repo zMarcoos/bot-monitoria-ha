@@ -84,6 +84,8 @@ export default {
                 description: `🎉 A submissão de ${member} ${userData.enrollment} para a atividade "${activity.title}" foi **aprovada**! 🎉`,
                 color: EMBED_COLORS.GREEN,
                 image: getRandomAdventureImage().url,
+                author: member.guild,
+                thumbnail: member.user.displayAvatarURL({ dynamic: true }),
               }),
             ],
           });

@@ -105,7 +105,3 @@ O sistema é modular e organizado para facilitar manutenção e extensibilidade.
   - Aumentar a modularidade e simplificar a manutenção.
 - 🎨 **Melhorar o design das embeds**:
   - Aprimorar a experiência do usuário com um design mais atraente.
-- 📨 **Aposentar as DMs**:
-  - Centralizar todas as interações no servidor, evitando mensagens diretas.
-- 📊 **Ajustar o rank e colocar o critério de tempo**:
-  - Incluir o tempo como critério para evitar que alunos acumulem pontos sem participar ativamente.

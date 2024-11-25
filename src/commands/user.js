@@ -128,6 +128,14 @@ export default new Command({
         const userService = new UserService();
         const user = await userService.getUser(interaction.user.id);
 
+        if (!user) {
+          await interaction.editReply({
+            content: "Você não possui um usuário cadastrado no sistema.",
+            ephemeral: true,
+          });
+          return;
+        }
+
         const imageBuffer = await generateImageWithStars(
           user.character,
           user.activityHistory.length,

@@ -58,16 +58,9 @@ export default class UserService {
   });
 
   async getUser(userId) {
-    /*
-    if (userCache.has(userId)) {
-      return userCache.get(userId);
-    }*/
-
     try {
-      const user = (await this.collection.doc(userId).get()).data() || null;
-      //if (user) userCache.set(userId, user);
-
-      return user;
+      const userDoc = await this.collection.doc(userId).get();
+      return userDoc.data() || null;
     } catch (error) {
       throw new CustomError(
         'Erro ao buscar usuário',

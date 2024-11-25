@@ -31,10 +31,21 @@ export default new Command({
       return;
     }
 
+    const calculateAverageSubmissionTime = (activities) => {
+      if (!activities || activities.length === 0) return Infinity;
+      const totalTime = activities.reduce((sum, activity) => sum + new Date(activity.submissionDate).getTime(), 0);
+      return totalTime / activities.length;
+    };
+
+
     const rankedUsers = users.sort((a, b) => {
       if (b.level !== a.level) return b.level - a.level;
       if (b.xp !== a.xp) return b.xp - a.xp;
-      return b.activityHistory.length - a.activityHistory.length;
+      if (b.activityHistory.length !== a.activityHistory.length) {
+        return b.activityHistory.length - a.activityHistory.length;
+      }
+
+      return calculateAverageSubmissionTime(b.activityHistory) - calculateAverageSubmissionTime(a.activityHistory);
     });
 
     const generateEmbed = async (page) => {

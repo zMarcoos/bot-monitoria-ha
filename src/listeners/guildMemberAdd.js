@@ -1,11 +1,12 @@
-import { Events } from 'discord.js';
-import { collectSequentialReactions, collectSequentialResponses, sendDM } from '../utils/interactionHandlers.js';
-import { createEmbed, deleteMessage } from '../utils/messageUtils.js';
+import { Events, PermissionsBitField } from 'discord.js';
+import { collectSequentialReactions, collectSequentialResponses } from '../utils/interactionHandlers.js';
+import { createEmbed } from '../utils/messageUtils.js';
 import { EMBED_COLORS } from '../utils/constants.js';
 import UserService from '../database/services/userService.js';
 import CustomError from '../exceptions/customError.js';
 
-const WELCOME_CHANNEL_ID = '1298472460156403752';
+const userService = new UserService();
+
 const INITIAL_LEVEL_ROLE_ID = '1309353021490200627';
 
 const MAPPINGS = {
@@ -41,25 +42,32 @@ const QUESTIONS = {
   ],
 };
 
-const userService = new UserService();
-
-function getCharacterEmojiByName(name) {
-  return MAPPINGS.characters[name]?.emoji || null;
-}
-
-function getCourseEmojiByName(name) {
-  return Object.keys(MAPPINGS.courses).find(
-    (key) => MAPPINGS.courses[key].name === name
-  );
-}
-
-function getCourseDetails(emoji) {
-  return MAPPINGS.courses[emoji];
+async function createPrivateChannel(guild, member) {
+  return await guild.channels.create({
+    name: `registro-${member.user.username}`,
+    type: 0,
+    permissionOverwrites: [
+      {
+        id: guild.roles.everyone.id,
+        deny: [PermissionsBitField.Flags.ViewChannel],
+      },
+      {
+        id: member.id,
+        allow: [
+          PermissionsBitField.Flags.ViewChannel,
+          PermissionsBitField.Flags.SendMessages,
+          PermissionsBitField.Flags.ReadMessageHistory,
+        ],
+      },
+    ],
+  });
 }
 
 async function assignRoleAndNickname(member, courseName, characterName) {
-  const courseEmoji = getCourseEmojiByName(courseName);
-  const characterEmoji = getCharacterEmojiByName(characterName);
+  const courseEmoji = Object.keys(MAPPINGS.courses).find(
+    (key) => MAPPINGS.courses[key].name === courseName
+  );
+  const characterEmoji = MAPPINGS.characters[characterName]?.emoji;
 
   if (!courseEmoji || !characterEmoji) {
     console.log(`Detalhes inválidos: curso ${courseName}, personagem ${characterName}`);
@@ -79,30 +87,13 @@ async function assignRoleAndNickname(member, courseName, characterName) {
   await member.setNickname(`${characterEmoji} ${member.user.username}`);
 }
 
-async function handleUnansweredQuestions(dmChannel, member) {
-  const notResponseMessage = createEmbed({
-    title: 'Perguntas não respondidas',
-    description: 'Você não respondeu às perguntas. Por favor, tente novamente.',
-    color: EMBED_COLORS.RED,
-  });
-
-  await dmChannel.send({
-    content: `${member}`,
-    embeds: [notResponseMessage],
-  });
-}
-
 export default {
   once: false,
   event: Events.GuildMemberAdd,
   async execute(member) {
     if (!member) return;
 
-    const welcomeChannel = member.guild.channels.cache.get(WELCOME_CHANNEL_ID);
-    if (!welcomeChannel) {
-      console.log('Canal de boas-vindas não encontrado!');
-      return;
-    }
+    const guild = member.guild;
 
     try {
       const user = await userService.getUser(member.id);
@@ -111,42 +102,48 @@ export default {
         return;
       }
 
-      const dmChannel = await sendDM(member, welcomeChannel, {
+      const channel = await createPrivateChannel(guild, member);
+      if (!channel) {
+        console.log('Canal privado não encontrado!');
+        return;
+      }
+
+      await channel.send({
         embeds: [
           createEmbed({
-            title: `Boas-vindas ao servidor ${member.guild.name}!`,
-            description: 'Olá! Seja bem-vindo ao servidor! Para começar, por favor, responda algumas perguntas!',
+            title: `Boas-vindas ao servidor ${guild.name}!`,
+            description: 'Olá! Para começar, por favor, responda algumas perguntas abaixo:',
             color: EMBED_COLORS.BLUE,
-            author: member.guild,
+            author: guild,
           }),
         ],
       });
 
-      if (!dmChannel) {
-        console.log(`Não foi possível enviar mensagem privada para ${member.user.tag}.`);
-        return;
-      }
-
-      await welcomeChannel.send({
-        content: `${member}`,
-        embeds: [
-          createEmbed({
-            title: '⚠️ Atenção',
-            description: 'Enviei uma mensagem privada para você. Por favor, responda as perguntas para continuar.',
-            color: EMBED_COLORS.YELLOW,
-          }),
-        ],
-      }).then((message) => deleteMessage(message, 30000));
-
-      const reactionAnswers = await collectSequentialReactions(member, dmChannel, QUESTIONS.REACTIONS);
+      const reactionAnswers = await collectSequentialReactions(member, channel, QUESTIONS.REACTIONS);
       if (!reactionAnswers) {
-        await handleUnansweredQuestions(dmChannel, member);
+        await channel.send({
+          embeds: [
+            createEmbed({
+              title: '⚠️ Perguntas não respondidas',
+              description: 'Você não respondeu às perguntas. Por favor, tente novamente.',
+              color: EMBED_COLORS.RED,
+            }),
+          ],
+        });
         return;
       }
 
-      const responseAnswers = await collectSequentialResponses(member, dmChannel, QUESTIONS.RESPONSES);
+      const responseAnswers = await collectSequentialResponses(member, channel, QUESTIONS.RESPONSES);
       if (!responseAnswers) {
-        await handleUnansweredQuestions(dmChannel, member);
+        await channel.send({
+          embeds: [
+            createEmbed({
+              title: '⚠️ Perguntas não respondidas',
+              description: 'Você não respondeu às perguntas. Por favor, tente novamente.',
+              color: EMBED_COLORS.RED,
+            }),
+          ],
+        });
         return;
       }
 
@@ -154,7 +151,8 @@ export default {
         (name) => MAPPINGS.characters[name].emoji === reactionAnswers.character
       );
 
-      const course = getCourseDetails(reactionAnswers.role);
+      const course = MAPPINGS.courses[reactionAnswers.role];
+
       if (!characterName || !course) {
         console.log('Detalhes inválidos ao criar perfil.');
         return;
@@ -175,8 +173,7 @@ export default {
       });
 
       await assignRoleAndNickname(member, course.name, characterName);
-
-      await dmChannel.send({
+      await channel.send({
         content: `${member}`,
         embeds: [
           createEmbed({
@@ -191,6 +188,15 @@ export default {
           }),
         ],
       });
+
+      setTimeout(async () => {
+        try {
+          await channel.delete();
+          console.log(`Canal ${channel.name} foi deletado com sucesso.`);
+        } catch (error) {
+          console.error(`Erro ao deletar o canal ${channel.name}:`, error);
+        }
+      }, 5000);
     } catch (error) {
       CustomError.logger(error, 'guildMemberAdd');
     }
