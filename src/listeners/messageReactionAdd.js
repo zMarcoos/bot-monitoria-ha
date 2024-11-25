@@ -115,7 +115,7 @@ export default {
           const data = await collectSequentialResponses(user, reaction.message.channel, [
             {
               key: 'reason',
-              question: 'Qual o motivo da rejeição?',
+              question: '❓ Qual o motivo da rejeição?',
               deletable: true,
             },
           ]);
@@ -133,7 +133,7 @@ export default {
             content: `<@${userId}>`,
             embeds: [
               createEmbed({
-                title: 'Atividade rejeitada',
+                title: '❌ Atividade rejeitada',
                 description: `A submissão de ${user.tag} para a atividade "${activity.title}" foi **rejeitada**.\n\n**Motivo:** ${data.reason}`,
                 color: EMBED_COLORS.RED,
               }),
