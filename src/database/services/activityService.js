@@ -206,13 +206,16 @@ export default class ActivityService {
   async listActivities() {
     try {
       const snapshot = await this.collection.get();
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      if (snapshot.empty) {
+        console.warn('A coleção "atividades" está vazia.');
+        return [];
+      }
+
+      return snapshot.docs.map(document => ({ id: document.id, ...document.data() }));
     } catch (error) {
-      throw new CustomError(
-        'Erro ao listar atividades',
-        'Não foi possível recuperar a lista de atividades.',
-        { code: 500 }
-      );
+      console.error('Erro ao listar atividades:', error.message);
+      return [];
     }
   }
 

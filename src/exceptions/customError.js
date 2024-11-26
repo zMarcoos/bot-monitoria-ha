@@ -1,6 +1,5 @@
 import { createEmbed } from '../utils/messageUtils.js';
 import { EMBED_COLORS } from '../utils/constants.js';
-import { sendWhatsappMessage } from '../integration/twilioIntegration.js';
 
 export default class CustomError extends Error {
   constructor(title, message, options = {}) {
@@ -14,8 +13,6 @@ export default class CustomError extends Error {
     const description = error instanceof CustomError
     ? `**Título:** ${error.title}\n**Descrição:** ${error.message}\n**Código:** ${error.code || 'Não especificado'}`
     : `Erro desconhecido: ${error.message}`
-
-    sendWhatsappMessage(description);
 
     return createEmbed({
       title: '⚠️ Comportamento inesperado',
@@ -43,7 +40,5 @@ export default class CustomError extends Error {
     } else {
       console.error(`Erro desconhecido durante ${taskDisplayName}: ${error.message}`);
     }
-
-    sendWhatsappMessage(`Erro detectado durante ${taskDisplayName}: ${error.message}`);
   }
 }

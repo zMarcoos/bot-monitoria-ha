@@ -21,7 +21,7 @@ export default new Command({
     if (!users || users.length === 0) {
       await interaction.editReply({
         embeds: [
-          createEmbed({
+          createEmbed({/
             title: '🏆 Ranking dos Melhores Alunos',
             description: 'Nenhum usuário encontrado.',
             color: EMBED_COLORS.BLUE,

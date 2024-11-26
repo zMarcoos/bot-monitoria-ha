@@ -145,7 +145,6 @@ export default {
 
       await reaction.users.remove(user.id);
     } catch (error) {
-      console.error('Erro em MessageReactionAdd:', error);
       CustomError.logToChannel(error, reaction.message.channel);
     } finally {
       await message.delete();

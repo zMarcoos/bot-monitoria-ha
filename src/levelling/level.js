@@ -25,6 +25,10 @@ export async function calculateLevelXPDistribution(recalculate = false) {
   const activityService = new ActivityService();
   try {
     const allActivities = await activityService.listActivities() || [];
+    if (!allActivities || allActivities.length === 0) {
+      console.warn('Nenhuma atividade disponível para calcular XP.');
+      return Array.from({ length: ROLES.length }, () => 0);
+    }
 
     const activityCounts = allActivities.reduce((accumulator, activity) => {
       accumulator[activity.type] = (accumulator[activity.type] || 0) + 1;
