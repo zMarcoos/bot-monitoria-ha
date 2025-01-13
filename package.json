@@ -1,26 +1,65 @@
 {
-  "name": "bot-monitoria-lab",
-  "version": "1.0.0",
-  "main": "src/index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon src/index.js"
-  },
+  "name": "bot-monitoria-ha-ts",
   "type": "module",
-  "keywords": [],
-  "author": "Marcos Grégory, Isis Nascimento, Everton Sousa",
-  "license": "ISC",
-  "description": "Um bot para monitoria do laboratório de programação",
+  "main": "build/index.js",
+  "author": {
+    "name": "Marcos Rodrigues (zMarcoos)"
+  },
+  "scripts": {
+    "check": "tsc --noEmit && echo ✔ Ok",
+    "build": "tsc",
+    "dev": "tsx --env-file .env ./src/index.ts",
+    "dev:dev": "tsx --env-file .env.dev ./src/index.ts",
+    "watch": "tsx --watch --env-file .env ./src/index.ts",
+    "watch:dev": "tsx --watch --env-file .env.dev ./src/index.ts",
+    "start": "node --experimental-json-modules --env-file .env ./build/index.js",
+    "start:dev": "node --env-file .env.dev ./build/index.js"
+  },
   "dependencies": {
-    "canvas": "^2.11.2",
+    "@magicyan/discord": "^1.2.2",
+    "canvas": "^3.0.1",
+    "chalk": "^5.3.0",
+    "consola": "^3.2.3",
     "date-fns": "^4.1.0",
+    "date-fns-tz": "^3.2.0",
     "discord.js": "^14.16.3",
-    "dotenv": "^16.4.5",
-    "firebase": "^11.0.1",
-    "firebase-admin": "^12.7.0",
-    "joi": "^17.13.3",
-    "node-cron": "^3.0.3",
-    "nodemon": "^3.1.7",
-    "twilio": "^5.3.6"
+    "fast-glob": "^3.3.2",
+    "pg": "^8.13.1",
+    "radix3": "^1.1.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.11",
+    "@types/pg": "^8.11.10",
+    "tsx": "4.8.0",
+    "typescript": "^5.6.3"
+  },
+  "imports": {
+    "#database/*": "./build/database/*",
+    "#database": [
+      "./build/database/index.js"
+    ],
+    "#base": [
+      "./build/discord/base/index.js"
+    ],
+    "#functions": [
+      "./build/functions/index.js"
+    ],
+    "#functions/*": "./build/functions/*",
+    "#menus": [
+      "./build/menus/index.js"
+    ],
+    "#settings": [
+      "./build/settings/index.js"
+    ],
+    "#tools": [
+      "./build/tools/index.js"
+    ],
+    "#server": [
+      "./build/server/index.js"
+    ],
+    "#lib": [
+      "./build/lib/index.js"
+    ]
   }
 }

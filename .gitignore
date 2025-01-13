@@ -1,3 +1,22 @@
-node_modules
-.env
-package-lock.json
+# Folders
+/build
+/dist
+/discloud
+/deprecated
+/node_modules
+
+# Files
+/.env
+/.env.dev
+/.env.development
+/package-lock.json
+
+# Config files
+/firebase.json
+
+# Extensions
+*.zip
+*.sqlite
+*.exe
+*.db
+*.development.json
