@@ -35,16 +35,34 @@ export default new Responder({
       return;
     }
 
+    const guildMembers = await interaction.guild?.members.fetch();
+
+    const usersWithJoinDate = users.map(user => {
+      const member = guildMembers?.get(user.id);
+      return {
+        ...user,
+        joinedAt: member?.joinedTimestamp || Infinity
+      };
+    });
+
+    usersWithJoinDate.sort((a, b) =>
+      b.level - a.level ||
+      b.xp - a.xp ||
+      b.activities_completed - a.activities_completed ||
+      b.max_streak - a.max_streak ||
+      b.streak - a.streak ||
+      a.joinedAt - b.joinedAt
+    );
+
     const start = page * USERS_PER_PAGE;
     const end = start + USERS_PER_PAGE;
-    const pageUsers = users.slice(start, end);
+    const pageUsers = usersWithJoinDate.slice(start, end);
 
     const description = await Promise.all(
       pageUsers.map(async (user, index) => {
         const rank = start + index + 1;
 
-        const member = interaction.guild?.members.cache.get(user.id)
-          || await interaction.guild?.members.fetch(user.id).catch(() => null);
+        const member = guildMembers?.get(user.id);
         const memberName = member?.nickname || member?.user?.globalName || "Usuário Anônimo";
 
         return `#${rank} **${memberName}**\n`
@@ -56,7 +74,7 @@ export default new Responder({
       })
     ).then((lines) => lines.join("\n\n"));
 
-    const maxPage = Math.ceil(users.length / USERS_PER_PAGE) - 1;
+    const maxPage = Math.ceil(usersWithJoinDate.length / USERS_PER_PAGE) - 1;
 
     const embed = createEmbed({
       title: "🏆 Ranking dos Melhores Alunos",
