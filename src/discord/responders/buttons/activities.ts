@@ -15,18 +15,18 @@ export default new Responder({
   type: ResponderType.Button,
   parse: (params) => schema.parse(params),
   async run(interaction, { page }) {
-    const ACTIVITIES_PER_PAGE = 3;
-    const MAX_USERS_DISPLAY = 5;
+    const ACTIVITIES_PER_PAGE = 1;
+    const MAX_USERS_DISPLAY = 25;
 
-    const start = page * ACTIVITIES_PER_PAGE;
     const activities = await query(
       `
       SELECT
         a.id AS activity_id,
         a.title,
         a.type,
+        a.description,
         a.expires_at,
-        u.id AS user_id,
+        ua.user_id,
         u.enrollment,
         u.course,
         u.role,
@@ -34,11 +34,8 @@ export default new Responder({
       FROM activities a
       LEFT JOIN user_activities ua ON a.id = ua.activity_id
       LEFT JOIN users u ON ua.user_id = u.id
-      WHERE ua.date_completed IS NOT NULL OR ua.user_id IS NULL
       ORDER BY a.id ASC
-      LIMIT $1 OFFSET $2
-      `,
-      [ACTIVITIES_PER_PAGE, start]
+      `
     );
 
     if (!activities.length) {
@@ -55,7 +52,7 @@ export default new Responder({
       return format(zonedTime, "dd/MM/yyyy 'às' HH:mm");
     };
 
-    const groupedActivities = {} as Record<number, { title: string; type: string; expiresAt: Date | null; users: string[] }>;
+    const groupedActivities = {} as Record<number, { title: string; type: string; description: string; expiresAt: Date | null; users: string[] }>;
 
     for (const activity of activities) {
       const activityId = activity.activity_id;
@@ -63,18 +60,23 @@ export default new Responder({
         groupedActivities[activityId] = {
           title: activity.title,
           type: activity.type,
+          description: activity.description,
           expiresAt: activity.expires_at,
           users: [],
         };
       }
 
-      if (activity.user_id) {
+      if (activity.user_id && activity.date_completed) {
         const userDisplay = `${activity.enrollment || "Desconhecido"} (<@${activity.user_id}>)`;
         groupedActivities[activityId].users.push(userDisplay);
       }
     }
 
-    const description = Object.entries(groupedActivities)
+    const totalActivities = Object.keys(groupedActivities).length;
+    const maxPage = Math.ceil(totalActivities / ACTIVITIES_PER_PAGE) - 1;
+
+    const paginatedActivities = Object.entries(groupedActivities)
+      .slice(page * ACTIVITIES_PER_PAGE, (page + 1) * ACTIVITIES_PER_PAGE)
       .map(([id, activity]) => {
         let usersList = activity.users.slice(0, MAX_USERS_DISPLAY).join(", ");
         if (activity.users.length > MAX_USERS_DISPLAY) {
@@ -86,6 +88,7 @@ export default new Responder({
           `🆔 ID: ${id}\n` +
           `📚 **Tipo:** ${activity.type}\n` +
           `📅 **Expira em:** ${formatExpiresAt(activity.expiresAt)}\n` +
+          `✏️ **Descrição:** ${activity.description}\n` +
           `👥 **Completaram:** ${usersList || "Nenhum"}`
         );
       })
@@ -93,13 +96,10 @@ export default new Responder({
 
     const embed = createEmbed({
       title: "📋 Lista de Atividades",
-      description: description || "Nenhuma atividade encontrada nesta página.",
+      description: paginatedActivities || "Nenhuma atividade encontrada nesta página.",
       footer: { text: `Página ${page + 1}` },
       color: "Blue",
     });
-
-    const totalActivities = await query("SELECT COUNT(*) FROM activities");
-    const maxPage = Math.ceil(totalActivities[0].count / ACTIVITIES_PER_PAGE) - 1;
 
     const row = createRow(
       new ButtonBuilder()
