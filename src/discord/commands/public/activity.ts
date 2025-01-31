@@ -159,6 +159,13 @@ new Command({
         }
 
         const activityId = Number(options.getString("id_atividade", true));
+        if (isNaN(activityId)) {
+          await interaction.editReply({
+            content: "ID da atividade inválido.",
+          });
+          return;
+        }
+
         const response = options.getString("resposta", true).trim();
 
         const activity = await getActivityById(activityId);

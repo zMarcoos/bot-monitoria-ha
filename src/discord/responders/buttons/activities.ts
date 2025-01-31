@@ -15,7 +15,8 @@ export default new Responder({
   type: ResponderType.Button,
   parse: (params) => schema.parse(params),
   async run(interaction, { page }) {
-    const ACTIVITIES_PER_PAGE = 5;
+    const ACTIVITIES_PER_PAGE = 3;
+    const MAX_USERS_DISPLAY = 5;
 
     const start = page * ACTIVITIES_PER_PAGE;
     const activities = await query(
@@ -28,10 +29,12 @@ export default new Responder({
         u.id AS user_id,
         u.enrollment,
         u.course,
-        u.role
+        u.role,
+        ua.date_completed
       FROM activities a
       LEFT JOIN user_activities ua ON a.id = ua.activity_id
       LEFT JOIN users u ON ua.user_id = u.id
+      WHERE ua.date_completed IS NOT NULL OR ua.user_id IS NULL
       ORDER BY a.id ASC
       LIMIT $1 OFFSET $2
       `,
@@ -48,12 +51,11 @@ export default new Responder({
 
     const formatExpiresAt = (expiresAt: Date | null) => {
       if (!expiresAt) return "Sem prazo";
-
       const zonedTime = toZonedTime(new Date(expiresAt), "America/Fortaleza");
       return format(zonedTime, "dd/MM/yyyy 'às' HH:mm");
     };
 
-    const groupedActivities: Record<number, { title: string; type: string; expiresAt: Date | null; users: string[] }> =   {};
+    const groupedActivities = {} as Record<number, { title: string; type: string; expiresAt: Date | null; users: string[] }>;
 
     for (const activity of activities) {
       const activityId = activity.activity_id;
@@ -73,13 +75,20 @@ export default new Responder({
     }
 
     const description = Object.entries(groupedActivities)
-      .map(
-        ([id, activity]) =>
-          `**#${id} - ${activity.title}**\n` +
+      .map(([id, activity]) => {
+        let usersList = activity.users.slice(0, MAX_USERS_DISPLAY).join(", ");
+        if (activity.users.length > MAX_USERS_DISPLAY) {
+          usersList += ` e mais ${activity.users.length - MAX_USERS_DISPLAY}...`;
+        }
+
+        return (
+          `**${activity.title}**\n` +
+          `🆔 ID: ${id}\n` +
           `📚 **Tipo:** ${activity.type}\n` +
           `📅 **Expira em:** ${formatExpiresAt(activity.expiresAt)}\n` +
-          `👥 **Completaram:** ${activity.users.join(", ") || "Nenhum"}`
-      )
+          `👥 **Completaram:** ${usersList || "Nenhum"}`
+        );
+      })
       .join("\n\n");
 
     const embed = createEmbed({
@@ -89,7 +98,8 @@ export default new Responder({
       color: "Blue",
     });
 
-    const maxPage = Math.ceil(activities.length / ACTIVITIES_PER_PAGE) - 1;
+    const totalActivities = await query("SELECT COUNT(*) FROM activities");
+    const maxPage = Math.ceil(totalActivities[0].count / ACTIVITIES_PER_PAGE) - 1;
 
     const row = createRow(
       new ButtonBuilder()
@@ -105,7 +115,7 @@ export default new Responder({
         )
         .setLabel("Próximo ➡️")
         .setStyle(ButtonStyle.Primary)
-        .setDisabled(page === maxPage)
+        .setDisabled(page >= maxPage)
     );
 
     await interaction.update({ embeds: [embed], components: [row] });
