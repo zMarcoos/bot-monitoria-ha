@@ -105,3 +105,9 @@ O sistema é modular e organizado para facilitar manutenção e extensibilidade.
   - Aumentar a modularidade e simplificar a manutenção.
 - 🎨 **Melhorar o design das embeds**:
   - Aprimorar a experiência do usuário com um design mais atraente.
+
+---
+
+### Demonstração
+
+Link da demonstração: https://www.linkedin.com/posts/gregsss_ensino-engajamento-e-divers%C3%A3o-no-mesmo-activity-7379092758071959552-sY6x?utm_source=share&utm_medium=member_desktop&rcm=ACoAACr2l7kBz0DqlJWV3ISoG4BYHREZ97km7bQ
